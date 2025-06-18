@@ -14,7 +14,7 @@ export default function Home() {
               Internal Sales Management System
             </p>
           </div>
-          
+
           <div className="flex gap-6 items-center flex-col sm:flex-row mt-8">
             <Link
               href="/data-entry"
@@ -43,8 +43,8 @@ export default function Home() {
                 </div>
               </div>
             </Link>
-          </div>
-        </main>
+        </div>
+      </main>
       </div>
     </div>
   );
