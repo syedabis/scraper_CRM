@@ -74,22 +74,22 @@ export default function DataEntry() {
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
       <div className="min-h-screen p-6">
         <div className="max-w-2xl mx-auto">
-          <div className="text-center mb-6">
+          <div className="text-center mb-8">
             <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
-              Lead Management System
+              DataCrumbs Lead Management
             </h1>
-            <p className="text-gray-400 mt-1">Enter New Lead Information</p>
-            <div className="w-24 h-1 bg-gradient-to-r from-blue-500 to-purple-500 mx-auto mt-2 rounded-full"></div>
+            <p className="text-gray-400 mt-2 text-lg">Capture and Track Your Sales Leads</p>
+            <div className="w-32 h-1 bg-gradient-to-r from-blue-500 to-purple-500 mx-auto mt-3 rounded-full"></div>
           </div>
           
           {submitStatus && (
-            <div className={`text-center p-3 rounded-lg mb-4 ${
+            <div className={`text-center p-4 rounded-lg mb-6 ${
               submitStatus === 'success' 
-                ? 'bg-green-500/20 text-green-400' 
-                : 'bg-red-500/20 text-red-400'
+                ? 'bg-green-500/20 text-green-400 border border-green-500/20' 
+                : 'bg-red-500/20 text-red-400 border border-red-500/20'
             }`}>
               {submitStatus === 'success' 
-                ? 'Lead submitted successfully!' 
+                ? '✓ Lead submitted successfully!' 
                 : countryCode === '+92' && phoneNumber.length !== 10
                   ? 'Please enter exactly 10 digits for Pakistan number'
                   : 'Failed to submit lead. Please try again.'}
@@ -97,10 +97,10 @@ export default function DataEntry() {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="bg-gradient-to-br from-gray-800 to-gray-900 border border-gray-700 rounded-lg p-4 shadow-lg">
-              <div className="space-y-3">
+            <div className="bg-gradient-to-br from-gray-800 to-gray-900 border border-gray-700 rounded-xl p-6 shadow-lg">
+              <div className="space-y-4">
                 <div>
-                  <label htmlFor="name" className="block text-sm font-medium text-gray-400 mb-1">
+                  <label htmlFor="name" className="block text-sm font-medium text-gray-300 mb-1">
                     Name
                   </label>
                   <input
@@ -108,13 +108,13 @@ export default function DataEntry() {
                     id="name"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    className="w-full p-2 bg-gray-800 border border-gray-700 rounded-lg text-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-                    placeholder="Enter name"
+                    className="w-full p-2.5 bg-gray-800/50 border border-gray-700 rounded-lg text-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                    placeholder="Enter lead's name"
                   />
                 </div>
 
                 <div>
-                  <label htmlFor="email" className="block text-sm font-medium text-gray-400 mb-1">
+                  <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-1">
                     Email
                   </label>
                   <input
@@ -122,20 +122,20 @@ export default function DataEntry() {
                     id="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full p-2 bg-gray-800 border border-gray-700 rounded-lg text-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-                    placeholder="Enter email"
+                    className="w-full p-2.5 bg-gray-800/50 border border-gray-700 rounded-lg text-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                    placeholder="Enter lead's email"
                   />
                 </div>
 
                 <div>
-                  <label htmlFor="phone" className="block text-sm font-medium text-gray-400 mb-1">
+                  <label htmlFor="phone" className="block text-sm font-medium text-gray-300 mb-1">
                     Phone Number <span className="text-red-400">*</span>
                   </label>
                   <div className="flex gap-2">
                     <div className="relative w-40">
                       <select
                         id="countryCode"
-                        className="w-full p-2 bg-gray-800 border border-gray-700 rounded-lg text-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 appearance-none"
+                        className="w-full p-2.5 bg-gray-800/50 border border-gray-700 rounded-lg text-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 appearance-none"
                         value={countryCode}
                         onChange={(e) => setCountryCode(e.target.value)}
                       >
@@ -381,7 +381,7 @@ export default function DataEntry() {
                       required
                       value={phoneNumber}
                       onChange={handlePhoneChange}
-                      className={`flex-1 p-2 bg-gray-800 border ${
+                      className={`flex-1 p-2.5 bg-gray-800/50 border ${
                         countryCode === '+92' && phoneNumber.length > 0 && phoneNumber.length !== 10
                           ? 'border-red-500'
                           : 'border-gray-700'
@@ -389,21 +389,21 @@ export default function DataEntry() {
                       placeholder={countryCode === '+92' ? '3XX XXXXXXX' : 'Enter phone number'}
                     />
                   </div>
-                  <p className="text-xs text-gray-500 mt-1">
+                  <p className="text-xs text-gray-500 mt-1.5">
                     {countryCode === '+92' ? 'Enter 10-digit mobile number for Pakistan' : 'Enter phone number'}
                   </p>
                 </div>
 
                 <div>
-                  <label htmlFor="lead" className="block text-sm font-medium text-gray-400 mb-1">
-                    Whose Lead is This? <span className="text-red-400">*</span>
+                  <label htmlFor="lead" className="block text-sm font-medium text-gray-300 mb-1">
+                    Lead Owner <span className="text-red-400">*</span>
                   </label>
                   <select
                     id="lead"
                     required
                     value={lead}
                     onChange={(e) => setLead(e.target.value)}
-                    className="w-full p-2 bg-gray-800 border border-gray-700 rounded-lg text-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                    className="w-full p-2.5 bg-gray-800/50 border border-gray-700 rounded-lg text-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
                   >
                     <option value="" className="bg-gray-800">Select Lead Owner</option>
                     <option value="pretty" className="bg-gray-800">Pretty</option>
@@ -417,13 +417,13 @@ export default function DataEntry() {
               <button
                 type="submit"
                 disabled={isSubmitting || (countryCode === '+92' && phoneNumber.length !== 10)}
-                className={`w-full sm:w-96 px-6 py-2.5 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg transition-all duration-200 shadow-lg text-lg font-medium ${
+                className={`w-full sm:w-96 px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg transition-all duration-200 shadow-lg text-lg font-medium ${
                   isSubmitting || (countryCode === '+92' && phoneNumber.length !== 10)
                     ? 'opacity-50 cursor-not-allowed' 
                     : 'hover:from-blue-600 hover:to-purple-600 hover:shadow-blue-500/20'
                 }`}
               >
-                {isSubmitting ? 'Submitting...' : 'Submit'}
+                {isSubmitting ? 'Submitting...' : 'Submit Lead'}
               </button>
             </div>
           </form>
