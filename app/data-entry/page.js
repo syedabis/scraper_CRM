@@ -25,6 +25,13 @@ export default function DataEntry() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // Validate Pakistan phone number
+    if (countryCode === '+92' && phoneNumber.length !== 10) {
+      setSubmitStatus('error');
+      return;
+    }
+
     setIsSubmitting(true);
     setSubmitStatus(null);
 
@@ -83,7 +90,9 @@ export default function DataEntry() {
             }`}>
               {submitStatus === 'success' 
                 ? 'Lead submitted successfully!' 
-                : 'Failed to submit lead. Please try again.'}
+                : countryCode === '+92' && phoneNumber.length !== 10
+                  ? 'Please enter exactly 10 digits for Pakistan number'
+                  : 'Failed to submit lead. Please try again.'}
             </div>
           )}
 
@@ -372,7 +381,11 @@ export default function DataEntry() {
                       required
                       value={phoneNumber}
                       onChange={handlePhoneChange}
-                      className="flex-1 p-2 bg-gray-800 border border-gray-700 rounded-lg text-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                      className={`flex-1 p-2 bg-gray-800 border ${
+                        countryCode === '+92' && phoneNumber.length > 0 && phoneNumber.length !== 10
+                          ? 'border-red-500'
+                          : 'border-gray-700'
+                      } rounded-lg text-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200`}
                       placeholder={countryCode === '+92' ? '3XX XXXXXXX' : 'Enter phone number'}
                     />
                   </div>
@@ -403,9 +416,9 @@ export default function DataEntry() {
             <div className="flex justify-center">
               <button
                 type="submit"
-                disabled={isSubmitting}
+                disabled={isSubmitting || (countryCode === '+92' && phoneNumber.length !== 10)}
                 className={`w-full sm:w-96 px-6 py-2.5 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg transition-all duration-200 shadow-lg text-lg font-medium ${
-                  isSubmitting 
+                  isSubmitting || (countryCode === '+92' && phoneNumber.length !== 10)
                     ? 'opacity-50 cursor-not-allowed' 
                     : 'hover:from-blue-600 hover:to-purple-600 hover:shadow-blue-500/20'
                 }`}
