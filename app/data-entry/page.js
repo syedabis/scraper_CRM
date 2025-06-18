@@ -75,6 +75,18 @@ export default function DataEntry() {
             <div className="w-24 h-1 bg-gradient-to-r from-blue-500 to-purple-500 mx-auto mt-2 rounded-full"></div>
           </div>
           
+          {submitStatus && (
+            <div className={`text-center p-3 rounded-lg mb-4 ${
+              submitStatus === 'success' 
+                ? 'bg-green-500/20 text-green-400' 
+                : 'bg-red-500/20 text-red-400'
+            }`}>
+              {submitStatus === 'success' 
+                ? 'Lead submitted successfully!' 
+                : 'Failed to submit lead. Please try again.'}
+            </div>
+          )}
+
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="bg-gradient-to-br from-gray-800 to-gray-900 border border-gray-700 rounded-lg p-4 shadow-lg">
               <div className="space-y-3">
@@ -387,18 +399,6 @@ export default function DataEntry() {
                 </div>
               </div>
             </div>
-
-            {submitStatus && (
-              <div className={`text-center p-3 rounded-lg ${
-                submitStatus === 'success' 
-                  ? 'bg-green-500/20 text-green-400' 
-                  : 'bg-red-500/20 text-red-400'
-              }`}>
-                {submitStatus === 'success' 
-                  ? 'Lead submitted successfully!' 
-                  : 'Failed to submit lead. Please try again.'}
-              </div>
-            )}
 
             <div className="flex justify-center">
               <button
