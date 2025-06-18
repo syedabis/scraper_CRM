@@ -12,16 +12,73 @@ const auth = new google.auth.GoogleAuth({
 
 const sheets = google.sheets({ version: 'v4', auth });
 
+async function getNextProspectNumber(sheetName) {
+  try {
+    // Get all values from the sheet
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: process.env.GOOGLE_SHEET_ID,
+      range: `${sheetName}!A:A`, // Get all values from column A (name column)
+    });
+
+    const values = response.data.values || [];
+    let maxNumber = 0;
+
+    // Find the highest prospect number
+    values.forEach(row => {
+      if (row[0] && row[0].startsWith('prospect_')) {
+        const number = parseInt(row[0].split('_')[1]);
+        if (!isNaN(number) && number > maxNumber) {
+          maxNumber = number;
+        }
+      }
+    });
+
+    return maxNumber + 1;
+  } catch (error) {
+    console.error('Error getting next prospect number:', error);
+    return 1; // Default to 1 if there's an error
+  }
+}
+
+function getPakistanDateTime() {
+  const date = new Date().toLocaleString('en-PK', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    timeZone: 'Asia/Karachi'
+  });
+
+  const time = new Date().toLocaleString('en-PK', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true,
+    timeZone: 'Asia/Karachi'
+  });
+
+  return { date, time };
+}
+
 export async function POST(request) {
   try {
     const data = await request.json();
     const { name, email, phoneNumber, countryCode, lead } = data;
 
+    // Generate prospect name if no name is provided
+    let finalName = name;
+    if (!name || name.trim() === '') {
+      const nextNumber = await getNextProspectNumber(lead);
+      finalName = `prospect_${nextNumber}`;
+    }
+
+    const { date, time } = getPakistanDateTime();
+
     // Prepare the row data
     const rowData = [
       [
-        new Date().toISOString(), // Timestamp
-        name || '', // Name (optional)
+        date, // Date column
+        time, // Time column
+        finalName, // Name (or generated prospect name)
         email || '', // Email (optional)
         `${countryCode}${phoneNumber}`, // Full phone number
       ],
@@ -30,7 +87,7 @@ export async function POST(request) {
     // Append the data to the lead owner's sheet
     await sheets.spreadsheets.values.append({
       spreadsheetId: process.env.GOOGLE_SHEET_ID,
-      range: `${lead}!A:D`, // Use lead owner's name as sheet name
+      range: `${lead}!A:E`, // Updated range to include both date and time columns
       valueInputOption: 'USER_ENTERED',
       requestBody: {
         values: rowData,

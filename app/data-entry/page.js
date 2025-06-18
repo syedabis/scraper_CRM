@@ -14,20 +14,26 @@ export default function DataEntry() {
   const handlePhoneChange = (e) => {
     const value = e.target.value;
     if (countryCode === '+92') {
-      // For Pakistan: only allow numbers and limit to 10 digits
-      const numbersOnly = value.replace(/[^0-9]/g, '').slice(0, 10);
-      setPhoneNumber(numbersOnly);
+      // For Pakistan: only allow numbers, must start with 3, and limit to 10 digits
+      const numbersOnly = value.replace(/[^0-9]/g, '');
+      if (numbersOnly.length === 0 || numbersOnly[0] === '3') {
+        setPhoneNumber(numbersOnly.slice(0, 10));
+      }
     } else {
       // For other countries: allow any format
       setPhoneNumber(value);
     }
   };
 
+  const isValidPakistanNumber = (number) => {
+    return number.length === 10 && number[0] === '3';
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     
     // Validate Pakistan phone number
-    if (countryCode === '+92' && phoneNumber.length !== 10) {
+    if (countryCode === '+92' && !isValidPakistanNumber(phoneNumber)) {
       setSubmitStatus('error');
       return;
     }
@@ -90,8 +96,8 @@ export default function DataEntry() {
             }`}>
               {submitStatus === 'success' 
                 ? '✓ Lead submitted successfully!' 
-                : countryCode === '+92' && phoneNumber.length !== 10
-                  ? 'Please enter exactly 10 digits for Pakistan number'
+                : countryCode === '+92' && !isValidPakistanNumber(phoneNumber)
+                  ? 'Please enter a valid 10-digit Pakistan number starting with 3'
                   : 'Failed to submit lead. Please try again.'}
             </div>
           )}
@@ -382,7 +388,7 @@ export default function DataEntry() {
                       value={phoneNumber}
                       onChange={handlePhoneChange}
                       className={`flex-1 p-2.5 bg-gray-800/50 border ${
-                        countryCode === '+92' && phoneNumber.length > 0 && phoneNumber.length !== 10
+                        countryCode === '+92' && phoneNumber.length > 0 && !isValidPakistanNumber(phoneNumber)
                           ? 'border-red-500'
                           : 'border-gray-700'
                       } rounded-lg text-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200`}
@@ -390,7 +396,7 @@ export default function DataEntry() {
                     />
                   </div>
                   <p className="text-xs text-gray-500 mt-1.5">
-                    {countryCode === '+92' ? 'Enter 10-digit mobile number for Pakistan' : 'Enter phone number'}
+                    {countryCode === '+92' ? 'Enter 10-digit mobile number starting with 3' : 'Enter phone number'}
                   </p>
                 </div>
 
@@ -416,9 +422,9 @@ export default function DataEntry() {
             <div className="flex justify-center">
               <button
                 type="submit"
-                disabled={isSubmitting || (countryCode === '+92' && phoneNumber.length !== 10)}
+                disabled={isSubmitting || (countryCode === '+92' && !isValidPakistanNumber(phoneNumber))}
                 className={`w-full sm:w-96 px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg transition-all duration-200 shadow-lg text-lg font-medium ${
-                  isSubmitting || (countryCode === '+92' && phoneNumber.length !== 10)
+                  isSubmitting || (countryCode === '+92' && !isValidPakistanNumber(phoneNumber))
                     ? 'opacity-50 cursor-not-allowed' 
                     : 'hover:from-blue-600 hover:to-purple-600 hover:shadow-blue-500/20'
                 }`}
