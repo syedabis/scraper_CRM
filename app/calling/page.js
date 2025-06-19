@@ -21,6 +21,7 @@ export default function Calling() {
   const [isEditing, setIsEditing] = useState(false);
   const [editData, setEditData] = useState({ name: '', email: '', phone: '' });
   const [updatingLead, setUpdatingLead] = useState(false);
+  const [currentTimeSlot, setCurrentTimeSlot] = useState('');
 
   const leadStatusOptions = [
     { name: 'New Leads', color: 'bg-blue-600 hover:bg-blue-700', icon: '📞' },
@@ -31,6 +32,37 @@ export default function Calling() {
     { name: 'Confirmation', color: 'bg-blue-600 hover:bg-blue-700', icon: '🤝' },
     { name: 'Paid', color: 'bg-purple-600 hover:bg-purple-700', icon: '💰' }
   ];
+
+  // Function to get current Pakistani time slot
+  const getCurrentTimeSlot = () => {
+    const now = new Date();
+    const pakistanTime = new Date(now.toLocaleString("en-US", {timeZone: "Asia/Karachi"}));
+    const hours = pakistanTime.getHours();
+    const minutes = pakistanTime.getMinutes();
+    const timeInMinutes = hours * 60 + minutes;
+
+    if (timeInMinutes >= 8 * 60 && timeInMinutes <= 12 * 60) {
+      return 'Slot 1 (8:00 AM - 12:00 PM)';
+    } else if (timeInMinutes >= 12 * 60 + 1 && timeInMinutes <= 14 * 60 + 30) {
+      return 'Slot 2 (12:01 PM - 2:30 PM)';
+    } else if (timeInMinutes >= 14 * 60 + 31 && timeInMinutes <= 16 * 60 + 30) {
+      return 'Slot 3 (2:31 PM - 4:30 PM)';
+    } else {
+      return 'Slot 4 (4:31 PM - 8:00 AM)';
+    }
+  };
+
+  // Update time slot every minute
+  useEffect(() => {
+    const updateTimeSlot = () => {
+      setCurrentTimeSlot(getCurrentTimeSlot());
+    };
+    
+    updateTimeSlot(); // Set initial time slot
+    const interval = setInterval(updateTimeSlot, 60000); // Update every minute
+    
+    return () => clearInterval(interval);
+  }, []);
 
   const fetchLeads = async (owner) => {
     if (!owner) return;
@@ -189,7 +221,8 @@ export default function Calling() {
         body: JSON.stringify({
           rowIndex: rowNumber,
           status,
-          owner: selectedOwner
+          owner: selectedOwner,
+          timeSlot: currentTimeSlot
         }),
       });
 
@@ -266,6 +299,20 @@ export default function Calling() {
               <option value="Asif">Asif</option>
             </select>
           </div>
+          
+          {/* Time Slot Display */}
+          {currentTimeSlot && (
+            <div className="mt-4">
+              <div className="inline-block bg-blue-600 text-white px-4 py-2 rounded-lg font-medium">
+                <span className="flex items-center space-x-2">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span>Current Time Slot: {currentTimeSlot}</span>
+                </span>
+              </div>
+            </div>
+          )}
         </div>
 
         {loading ? (

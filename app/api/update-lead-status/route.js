@@ -76,8 +76,11 @@ async function getSheetId(sheetName) {
 
 export async function POST(request) {
   try {
-    const { rowIndex, status, owner } = await request.json();
-    console.log('Received update request:', { rowIndex, status, owner });
+    const { rowIndex, status, owner, timeSlot } = await request.json();
+    console.log('Received update request:', { rowIndex, status, owner, timeSlot });
+
+    // Get current time for logging and time slot updates
+    const currentTime = new Date().toLocaleString();
 
     // Validate required fields
     if (rowIndex === undefined || rowIndex === null) {
@@ -119,11 +122,22 @@ export async function POST(request) {
       );
     }
 
+    // Determine which time slot column to update
+    let timeSlotColumn = '';
+    if (timeSlot && timeSlot.includes('Slot 1')) {
+      timeSlotColumn = 'G'; // Column G for Slot 1
+    } else if (timeSlot && timeSlot.includes('Slot 2')) {
+      timeSlotColumn = 'H'; // Column H for Slot 2
+    } else if (timeSlot && timeSlot.includes('Slot 3')) {
+      timeSlotColumn = 'I'; // Column I for Slot 3
+    } else if (timeSlot && timeSlot.includes('Slot 4')) {
+      timeSlotColumn = 'J'; // Column J for Slot 4
+    }
+
     // Update the status in column F (6th column)
-    const updateRange = `${owner.toLowerCase()}!F${rowIndex}`; // No need to add 1 since rowIndex is already correct
-    console.log('Updating range:', updateRange);
+    const updateRange = `${owner.toLowerCase()}!F${rowIndex}`;
+    console.log('Updating status range:', updateRange);
     
-    // Update only the value, don't touch formatting or validation
     const updateResponse = await sheets.spreadsheets.values.update({
       spreadsheetId,
       range: updateRange,
@@ -133,9 +147,37 @@ export async function POST(request) {
       }
     });
 
-    console.log('Update response:', updateResponse.data);
+    console.log('Status update response:', updateResponse.data);
 
-    return NextResponse.json({ success: true });
+    // Update the corresponding time slot column with status and time
+    if (timeSlotColumn) {
+      const timeSlotRange = `${owner.toLowerCase()}!${timeSlotColumn}${rowIndex}`;
+      const timeSlotValue = `${status} (${currentTime})`;
+      console.log('Updating time slot range:', timeSlotRange, 'with value:', timeSlotValue);
+      
+      const timeSlotResponse = await sheets.spreadsheets.values.update({
+        spreadsheetId,
+        range: timeSlotRange,
+        valueInputOption: 'RAW',
+        resource: {
+          values: [[timeSlotValue]]
+        }
+      });
+
+      console.log('Time slot update response:', timeSlotResponse.data);
+    }
+
+    console.log('Time slot for this call:', timeSlot);
+    console.log('Current time:', currentTime);
+    console.log('Client said (status):', status);
+
+    return NextResponse.json({ 
+      success: true, 
+      timeSlot,
+      currentTime,
+      timeSlotColumn: timeSlotColumn || 'None',
+      clientSaid: status
+    });
   } catch (error) {
     console.error('Error updating lead status:', error);
     return NextResponse.json({ error: error.message || 'Failed to update status' }, { status: 500 });
