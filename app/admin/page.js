@@ -244,53 +244,6 @@ export default function AdminPanel() {
             );
           })}
         </div>
-
-        {/* Debug Section: Show slot data and extracted call dates for each agent */}
-        <div className="bg-gray-800 rounded-lg p-4 my-8 max-w-4xl mx-auto">
-          <h2 className="text-lg font-bold text-yellow-400 mb-2">Debug: Slot Data & Extracted Call Dates</h2>
-          {['Pretty', 'Asif'].map((agent) => {
-            const agentLeads = allLeads.filter((lead) => lead[lead.length - 1] === agent);
-            return (
-              <div key={agent} className="mb-4">
-                <h3 className="text-md font-semibold text-white mb-1">{agent}</h3>
-                <div className="overflow-x-auto">
-                  <table className="min-w-full text-xs text-gray-200 border border-gray-700">
-                    <thead>
-                      <tr className="bg-gray-700">
-                        <th className="px-2 py-1 border border-gray-600">Lead Name</th>
-                        <th className="px-2 py-1 border border-gray-600">Slot 1</th>
-                        <th className="px-2 py-1 border border-gray-600">Slot 2</th>
-                        <th className="px-2 py-1 border border-gray-600">Slot 3</th>
-                        <th className="px-2 py-1 border border-gray-600">Slot 4</th>
-                        <th className="px-2 py-1 border border-gray-600">Extracted Dates</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {agentLeads.map((lead, idx) => {
-                        const slots = [lead[7] || '', lead[8] || '', lead[9] || '', lead[10] || ''];
-                        // Extract dates from each slot
-                        const extractedDates = slots.map(slot => {
-                          const dateMatch = slot.match(/\(([^,]+)/);
-                          return dateMatch ? dateMatch[1].trim() : '';
-                        }).filter(Boolean).join(', ');
-                        return (
-                          <tr key={idx} className="border-t border-gray-700">
-                            <td className="px-2 py-1 border border-gray-600">{lead[3] || 'No Name'}</td>
-                            <td className="px-2 py-1 border border-gray-600">{slots[0]}</td>
-                            <td className="px-2 py-1 border border-gray-600">{slots[1]}</td>
-                            <td className="px-2 py-1 border border-gray-600">{slots[2]}</td>
-                            <td className="px-2 py-1 border border-gray-600">{slots[3]}</td>
-                            <td className="px-2 py-1 border border-gray-600 text-yellow-300">{extractedDates || '-'}</td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            );
-          })}
-        </div>
       </div>
     </div>
   );
