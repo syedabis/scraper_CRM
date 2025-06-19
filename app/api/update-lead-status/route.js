@@ -25,6 +25,10 @@ const getStatusColor = (status) => {
       return { red: 0.2, green: 0.2, blue: 0.8 }; // Blue
     case 'Paid':
       return { red: 0.5, green: 0.2, blue: 0.8 }; // Purple
+    case 'Demo':
+      return { red: 0.3, green: 0.2, blue: 0.8 }; // Indigo
+    case 'Form Filled':
+      return { red: 0.2, green: 0.5, blue: 0.5 }; // Teal
     default:
       return { red: 1, green: 1, blue: 1 }; // White
   }
@@ -36,7 +40,9 @@ const VALID_STATUSES = [
   'Call Later',
   'Client Lost',
   'Confirmation',
-  'Paid'
+  'Paid',
+  'Demo',
+  'Form Filled'
 ];
 
 // Cache for sheet IDs
@@ -80,7 +86,16 @@ export async function POST(request) {
     console.log('Received update request:', { rowIndex, status, owner, timeSlot, notes });
 
     // Get current time for logging and time slot updates
-    const currentTime = new Date().toLocaleString();
+    const currentTime = new Date().toLocaleString('en-US', {
+      timeZone: 'Asia/Karachi',
+      year: 'numeric',
+      month: 'numeric',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: 'numeric',
+      second: 'numeric',
+      hour12: true
+    });
 
     // Validate required fields
     if (rowIndex === undefined || rowIndex === null) {
