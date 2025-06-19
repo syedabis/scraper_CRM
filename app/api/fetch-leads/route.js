@@ -38,8 +38,16 @@ export async function GET(request) {
 
     // Skip header row and include row numbers in the data
     const leadsWithRowNumbers = rows.slice(1).map((row, index) => {
-      // Add row number as the first element (index + 2 because of 0-based index and header)
-      return [index + 2, ...row];
+      // Pad the row to at least 10 columns (A-J)
+      const paddedRow = [...row];
+      while (paddedRow.length < 10) {
+        paddedRow.push('');
+      }
+      // Count non-empty slot columns (Slot 1: G, Slot 2: H, Slot 3: I, Slot 4: J)
+      const slotValues = [paddedRow[6], paddedRow[7], paddedRow[8], paddedRow[9]];
+      const numberOfAttempts = slotValues.filter(v => v && v.trim() !== '').length;
+      // Add row number as the first element, then padded row, then number of attempts
+      return [index + 2, ...paddedRow, numberOfAttempts];
     });
 
     return NextResponse.json(leadsWithRowNumbers);

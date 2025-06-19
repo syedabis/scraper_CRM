@@ -210,20 +210,19 @@ export default function Calling() {
     try {
       setUpdatingStatus(status);
       const rowNumber = currentLead[0];
-      console.log('Current lead:', currentLead);
-      console.log('Updating row:', rowNumber, 'with status:', status);
-
+      const payload = {
+        rowIndex: rowNumber,
+        status,
+        owner: selectedOwner,
+        timeSlot: currentTimeSlot
+      };
+      console.log('Sending update-lead-status payload:', payload);
       const response = await fetch('/api/update-lead-status', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          rowIndex: rowNumber,
-          status,
-          owner: selectedOwner,
-          timeSlot: currentTimeSlot
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (!response.ok) {
@@ -235,23 +234,17 @@ export default function Calling() {
       setShowTooltip(true);
       setTimeout(() => setShowTooltip(false), 3000);
 
-      // Update local state
-      const updatedLeads = leads.map(lead => {
-        if (lead[0] === rowNumber) {
-          return [...lead.slice(0, 6), status, ...lead.slice(7)];
-        }
-        return lead;
-      });
-      setLeads(updatedLeads);
-      
+      // Re-fetch leads to get the latest slot column values
+      await fetchLeads(selectedOwner);
+
       // Move to next lead if available
       const currentLeadIndex = filteredLeads.findIndex(lead => lead[0] === rowNumber);
       if (currentLeadIndex < filteredLeads.length - 1) {
         setCurrentIndex(currentLeadIndex + 1);
       }
-      
+
       // Re-filter leads after update
-      filterLeadsByStatus(selectedStatus, updatedLeads);
+      filterLeadsByStatus(selectedStatus, leads);
 
     } catch (error) {
       console.error('Error updating status:', error);
@@ -282,6 +275,35 @@ export default function Calling() {
   const getCurrentStatus = () => {
     return leadStatus[currentIndex] || currentLead?.[5] || ''; // Column F (index 5) contains status
   };
+
+  // Helper function to get status color
+  const getStatusColor = (status) => {
+    if (!status) return 'bg-gray-600';
+    
+    const statusText = status.split(' (')[0]; // Remove timestamp part
+    
+    switch (statusText) {
+      case 'Call Received':
+        return 'bg-green-600';
+      case 'Not Received':
+        return 'bg-red-600';
+      case 'Call Later':
+        return 'bg-yellow-600';
+      case 'Client Lost':
+        return 'bg-gray-600';
+      case 'Confirmation':
+        return 'bg-blue-600';
+      case 'Paid':
+        return 'bg-purple-600';
+      default:
+        return 'bg-gray-600';
+    }
+  };
+
+  // Debug: Log the currentLead used in Call History
+  if (typeof window !== 'undefined' && currentLead) {
+    console.log('Call History currentLead:', currentLead);
+  }
 
   return (
     <div className="min-h-screen bg-gray-900 py-8 px-1 sm:px-2 lg:px-4">
@@ -351,6 +373,98 @@ export default function Calling() {
                   </p>
                 </div>
               </div>
+
+              {/* Time Slot History Section - Moved to sidebar */}
+              {currentLead && (
+                <div className="mt-4 bg-gray-800 rounded-lg p-4 shadow-lg">
+                  <h2 className="text-lg font-bold text-white mb-3 text-center">Call History</h2>
+                  <div className="space-y-3">
+                    {/* Slot 1 - Column G (index 7) */}
+                    <div className="bg-gray-700 rounded-lg p-3">
+                      <h3 className="text-sm font-semibold text-white mb-1">Slot 1 (8:00 AM - 12:00 PM)</h3>
+                      <div className="min-h-[40px] flex flex-col items-center justify-center w-full">
+                        {currentLead?.[7] ? (() => {
+                          const value = currentLead[7];
+                          const splitIndex = value.indexOf('(');
+                          const status = splitIndex !== -1 ? value.slice(0, splitIndex).trim() : value;
+                          const timestamp = splitIndex !== -1 ? value.slice(splitIndex) : '';
+                          return (
+                            <>
+                              <span className="font-bold text-green-400 text-sm">{status}</span>
+                              {timestamp && <span className="text-gray-300 text-xs mt-1">{timestamp}</span>}
+                            </>
+                          );
+                        })() : (
+                          <span className="text-gray-500 text-xs">No call made</span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Slot 2 - Column H (index 8) */}
+                    <div className="bg-gray-700 rounded-lg p-3">
+                      <h3 className="text-sm font-semibold text-white mb-1">Slot 2 (12:01 PM - 2:30 PM)</h3>
+                      <div className="min-h-[40px] flex flex-col items-center justify-center w-full">
+                        {currentLead?.[8] ? (() => {
+                          const value = currentLead[8];
+                          const splitIndex = value.indexOf('(');
+                          const status = splitIndex !== -1 ? value.slice(0, splitIndex).trim() : value;
+                          const timestamp = splitIndex !== -1 ? value.slice(splitIndex) : '';
+                          return (
+                            <>
+                              <span className="font-bold text-green-400 text-sm">{status}</span>
+                              {timestamp && <span className="text-gray-300 text-xs mt-1">{timestamp}</span>}
+                            </>
+                          );
+                        })() : (
+                          <span className="text-gray-500 text-xs">No call made</span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Slot 3 - Column I (index 9) */}
+                    <div className="bg-gray-700 rounded-lg p-3">
+                      <h3 className="text-sm font-semibold text-white mb-1">Slot 3 (2:31 PM - 4:30 PM)</h3>
+                      <div className="min-h-[40px] flex flex-col items-center justify-center w-full">
+                        {currentLead?.[9] ? (() => {
+                          const value = currentLead[9];
+                          const splitIndex = value.indexOf('(');
+                          const status = splitIndex !== -1 ? value.slice(0, splitIndex).trim() : value;
+                          const timestamp = splitIndex !== -1 ? value.slice(splitIndex) : '';
+                          return (
+                            <>
+                              <span className="font-bold text-green-400 text-sm">{status}</span>
+                              {timestamp && <span className="text-gray-300 text-xs mt-1">{timestamp}</span>}
+                            </>
+                          );
+                        })() : (
+                          <span className="text-gray-500 text-xs">No call made</span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Slot 4 - Column J (index 10) */}
+                    <div className="bg-gray-700 rounded-lg p-3">
+                      <h3 className="text-sm font-semibold text-white mb-1">Slot 4 (4:31 PM - 8:00 AM)</h3>
+                      <div className="min-h-[40px] flex flex-col items-center justify-center w-full">
+                        {currentLead?.[10] ? (() => {
+                          const value = currentLead[10];
+                          const splitIndex = value.indexOf('(');
+                          const status = splitIndex !== -1 ? value.slice(0, splitIndex).trim() : value;
+                          const timestamp = splitIndex !== -1 ? value.slice(splitIndex) : '';
+                          return (
+                            <>
+                              <span className="font-bold text-green-400 text-sm">{status}</span>
+                              {timestamp && <span className="text-gray-300 text-xs mt-1">{timestamp}</span>}
+                            </>
+                          );
+                        })() : (
+                          <span className="text-gray-500 text-xs">No call made</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Main content */}
