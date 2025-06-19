@@ -167,6 +167,46 @@ export async function POST(request) {
       console.log('Time slot update response:', timeSlotResponse.data);
     }
 
+    // Calculate and update the Number of Attempts column (Column K)
+    try {
+      // First, get the current row data to count existing attempts
+      const rowRange = `${owner.toLowerCase()}!A${rowIndex}:K${rowIndex}`;
+      const rowResponse = await sheets.spreadsheets.values.get({
+        spreadsheetId,
+        range: rowRange,
+      });
+
+      const rowData = rowResponse.data.values?.[0] || [];
+      
+      // Count non-empty slot values (columns G, H, I, J - indices 6, 7, 8, 9)
+      const slotValues = [
+        rowData[6] || '', // Slot 1 (G)
+        rowData[7] || '', // Slot 2 (H) 
+        rowData[8] || '', // Slot 3 (I)
+        rowData[9] || ''  // Slot 4 (J)
+      ];
+      
+      const numberOfAttempts = slotValues.filter(v => v && v.trim() !== '').length;
+      
+      // Update the Number of Attempts column (Column K)
+      const attemptsRange = `${owner.toLowerCase()}!K${rowIndex}`;
+      console.log('Updating attempts range:', attemptsRange, 'with value:', numberOfAttempts);
+      
+      const attemptsResponse = await sheets.spreadsheets.values.update({
+        spreadsheetId,
+        range: attemptsRange,
+        valueInputOption: 'RAW',
+        resource: {
+          values: [[numberOfAttempts]]
+        }
+      });
+
+      console.log('Attempts update response:', attemptsResponse.data);
+    } catch (error) {
+      console.error('Error updating number of attempts:', error);
+      // Don't fail the entire request if attempts update fails
+    }
+
     console.log('Time slot for this call:', timeSlot);
     console.log('Current time:', currentTime);
     console.log('Client said (status):', status);

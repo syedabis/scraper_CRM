@@ -84,6 +84,34 @@ export default function Calling() {
     }
   };
 
+  // New function to re-fetch leads while preserving current status and position
+  const refreshLeads = async (owner) => {
+    if (!owner) return;
+    
+    try {
+      const response = await fetch(`/api/fetch-leads?sheetName=${encodeURIComponent(owner)}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch leads');
+      }
+      const data = await response.json();
+      setLeads(data);
+      
+      // Preserve current status filter and find the same lead
+      const currentRowNumber = currentLead?.[0];
+      filterLeadsByStatus(selectedStatus, data);
+      
+      // Find and set the same lead position
+      if (currentRowNumber) {
+        const newIndex = filteredLeads.findIndex(lead => lead[0] === currentRowNumber);
+        if (newIndex !== -1) {
+          setCurrentIndex(newIndex);
+        }
+      }
+    } catch (error) {
+      console.error('Error refreshing leads:', error);
+    }
+  };
+
   const filterLeadsByStatus = (status, leadsToFilter = leads) => {
     setSelectedStatus(status);
     let filtered;
@@ -154,17 +182,8 @@ export default function Calling() {
       setShowTooltip(true);
       setTimeout(() => setShowTooltip(false), 3000);
 
-      // Update local state
-      const updatedLeads = leads.map(lead => {
-        if (lead[0] === currentLead[0]) {
-          return [lead[0], lead[1], lead[2], editData.name, editData.email, editData.phone, lead[6]];
-        }
-        return lead;
-      });
-      setLeads(updatedLeads);
-      
-      // Re-filter leads after update
-      filterLeadsByStatus(selectedStatus, updatedLeads);
+      // Re-fetch leads to get the latest data
+      await refreshLeads(selectedOwner);
       
       setIsEditing(false);
     } catch (error) {
@@ -235,16 +254,13 @@ export default function Calling() {
       setTimeout(() => setShowTooltip(false), 3000);
 
       // Re-fetch leads to get the latest slot column values
-      await fetchLeads(selectedOwner);
+      await refreshLeads(selectedOwner);
 
-      // Move to next lead if available
-      const currentLeadIndex = filteredLeads.findIndex(lead => lead[0] === rowNumber);
-      if (currentLeadIndex < filteredLeads.length - 1) {
-        setCurrentIndex(currentLeadIndex + 1);
-      }
+      // Small delay to ensure UI updates properly
+      await new Promise(resolve => setTimeout(resolve, 500));
 
-      // Re-filter leads after update
-      filterLeadsByStatus(selectedStatus, leads);
+      // Stay on the same lead instead of moving to next
+      // The current lead will be updated with fresh data
 
     } catch (error) {
       console.error('Error updating status:', error);
@@ -298,6 +314,13 @@ export default function Calling() {
       default:
         return 'bg-gray-600';
     }
+  };
+
+  // Utility function to calculate number of attempts from slot data
+  const calculateAttempts = (lead) => {
+    if (!lead) return 0;
+    // Use the stored value from column K (index 11)
+    return lead[11] || 0;
   };
 
   // Debug: Log the currentLead used in Call History
@@ -538,6 +561,7 @@ export default function Calling() {
                             <th className="border border-gray-600 p-3 text-center text-white font-medium text-xl">Phone</th>
                             <th className="border border-gray-600 p-3 text-center text-white font-medium text-xl">Email</th>
                             <th className="border border-gray-600 p-3 text-center text-white font-medium text-xl">Date & Time</th>
+                            <th className="border border-gray-600 p-3 text-center text-white font-medium text-xl">Attempts</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -583,6 +607,11 @@ export default function Calling() {
                             </td>
                             <td className="border border-gray-600 p-3 text-center align-middle">
                               <span className="text-white text-xl">{currentLead?.[1] || ''} {currentLead?.[2] || ''}</span>
+                            </td>
+                            <td className="border border-gray-600 p-3 text-center align-middle">
+                              <span className="text-white text-xl font-bold">
+                                {currentLead?.[11] || 0}
+                              </span>
                             </td>
                           </tr>
                         </tbody>

@@ -28,7 +28,7 @@ export async function GET(request) {
 
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId,
-      range: `${sheetName}!A:Z`,
+      range: `${sheetName}!A:K`,
     });
 
     const rows = response.data.values || [];
@@ -38,16 +38,17 @@ export async function GET(request) {
 
     // Skip header row and include row numbers in the data
     const leadsWithRowNumbers = rows.slice(1).map((row, index) => {
-      // Pad the row to at least 10 columns (A-J)
+      // Pad the row to at least 11 columns (A-K)
       const paddedRow = [...row];
-      while (paddedRow.length < 10) {
+      while (paddedRow.length < 11) {
         paddedRow.push('');
       }
-      // Count non-empty slot columns (Slot 1: G, Slot 2: H, Slot 3: I, Slot 4: J)
-      const slotValues = [paddedRow[6], paddedRow[7], paddedRow[8], paddedRow[9]];
-      const numberOfAttempts = slotValues.filter(v => v && v.trim() !== '').length;
-      // Add row number as the first element, then padded row, then number of attempts
-      return [index + 2, ...paddedRow, numberOfAttempts];
+      
+      // Get the Number of Attempts from column K (index 10)
+      const numberOfAttempts = paddedRow[10] || 0;
+      
+      // Add row number as the first element, then padded row
+      return [index + 2, ...paddedRow];
     });
 
     return NextResponse.json(leadsWithRowNumbers);

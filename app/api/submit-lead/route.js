@@ -81,13 +81,19 @@ export async function POST(request) {
         finalName, // Name (or generated prospect name)
         email || '', // Email (optional)
         `${countryCode}${phoneNumber}`, // Full phone number
+        '', // Status column (F) - empty initially
+        '', // Slot 1 (G) - empty initially
+        '', // Slot 2 (H) - empty initially
+        '', // Slot 3 (I) - empty initially
+        '', // Slot 4 (J) - empty initially
+        0,  // Number of Attempts (K) - 0 initially
       ],
     ];
 
     // Append the data to the lead owner's sheet
     await sheets.spreadsheets.values.append({
       spreadsheetId: process.env.GOOGLE_SHEET_ID,
-      range: `${lead}!A:E`, // Updated range to include both date and time columns
+      range: `${lead}!A:K`, // Updated range to include all columns including Number of Attempts
       valueInputOption: 'USER_ENTERED',
       requestBody: {
         values: rowData,
