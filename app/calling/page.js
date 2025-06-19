@@ -22,13 +22,14 @@ export default function Calling() {
   const [editData, setEditData] = useState({ name: '', email: '', phone: '' });
   const [updatingLead, setUpdatingLead] = useState(false);
   const [currentTimeSlot, setCurrentTimeSlot] = useState('');
+  const [notes, setNotes] = useState('');
 
   const leadStatusOptions = [
     { name: 'New Leads', color: 'bg-blue-600 hover:bg-blue-700', icon: '📞' },
     { name: 'Call Received', color: 'bg-green-600 hover:bg-green-700', icon: '✅' },
     { name: 'Not Received', color: 'bg-red-600 hover:bg-red-700', icon: '❌' },
     { name: 'Call Later', color: 'bg-yellow-600 hover:bg-yellow-700', icon: '⏰' },
-    { name: 'Client Lost', color: 'bg-gray-600 hover:bg-gray-700', icon: '💔' },
+    { name: 'Client Lost', color: 'bg-amber-700 hover:bg-amber-800', icon: '💔' },
     { name: 'Confirmation', color: 'bg-blue-600 hover:bg-blue-700', icon: '🤝' },
     { name: 'Paid', color: 'bg-purple-600 hover:bg-purple-700', icon: '💰' }
   ];
@@ -41,14 +42,14 @@ export default function Calling() {
     const minutes = pakistanTime.getMinutes();
     const timeInMinutes = hours * 60 + minutes;
 
-    if (timeInMinutes >= 8 * 60 && timeInMinutes <= 12 * 60) {
-      return 'Slot 1 (8:00 AM - 12:00 PM)';
-    } else if (timeInMinutes >= 12 * 60 + 1 && timeInMinutes <= 14 * 60 + 30) {
-      return 'Slot 2 (12:01 PM - 2:30 PM)';
-    } else if (timeInMinutes >= 14 * 60 + 31 && timeInMinutes <= 16 * 60 + 30) {
-      return 'Slot 3 (2:31 PM - 4:30 PM)';
+    if (timeInMinutes >= 9 * 60 && timeInMinutes <= 11 * 60) {
+      return 'Slot 1 (9:00 AM - 11:00 AM)';
+    } else if (timeInMinutes >= 11 * 60 + 1 && timeInMinutes <= 13 * 60) {
+      return 'Slot 2 (11:00 AM - 1:00 PM)';
+    } else if (timeInMinutes >= 13 * 60 + 1 && timeInMinutes <= 16 * 60) {
+      return 'Slot 3 (1:00 PM - 4:00 PM)';
     } else {
-      return 'Slot 4 (4:31 PM - 8:00 AM)';
+      return 'Slot 4 (4:00 PM - 9:00 AM)';
     }
   };
 
@@ -233,7 +234,8 @@ export default function Calling() {
         rowIndex: rowNumber,
         status,
         owner: selectedOwner,
-        timeSlot: currentTimeSlot
+        timeSlot: currentTimeSlot,
+        notes: notes.trim()
       };
       console.log('Sending update-lead-status payload:', payload);
       const response = await fetch('/api/update-lead-status', {
@@ -252,6 +254,9 @@ export default function Calling() {
       setTooltipMessage('Status updated successfully!');
       setShowTooltip(true);
       setTimeout(() => setShowTooltip(false), 3000);
+
+      // Clear notes after successful update
+      setNotes('');
 
       // Re-fetch leads to get the latest slot column values
       await refreshLeads(selectedOwner);
@@ -369,20 +374,35 @@ export default function Calling() {
               <div className="bg-gray-800 rounded-lg p-4 shadow-lg">
                 <h2 className="text-xl font-bold text-white mb-4 text-center">Lead Categories</h2>
                 <div className="space-y-2">
-                  {leadStatusOptions.map((option) => (
-                    <button
-                      key={option.name}
-                      onClick={() => handleStatusSelect(option.name)}
-                      className={`w-full p-3 rounded-lg text-left transition-all duration-200 text-white font-medium flex items-center space-x-3 ${
-                        selectedStatus === option.name 
-                          ? `${option.color} shadow-lg` 
-                          : 'bg-gray-700 hover:bg-gray-600'
-                      }`}
-                    >
-                      <span className="text-lg">{option.icon}</span>
-                      <span>{option.name}</span>
-                    </button>
-                  ))}
+                  {leadStatusOptions.map((option) => {
+                    // Calculate count for each status
+                    let count = 0;
+                    if (option.name === 'New Leads') {
+                      count = leads.filter(lead => !lead[6] || lead[6].trim() === '').length;
+                    } else {
+                      count = leads.filter(lead => lead[6] === option.name).length;
+                    }
+                    
+                    return (
+                      <button
+                        key={option.name}
+                        onClick={() => handleStatusSelect(option.name)}
+                        className={`w-full p-3 rounded-lg text-left transition-all duration-200 text-white font-medium flex items-center justify-between ${
+                          selectedStatus === option.name 
+                            ? `${option.color} shadow-lg` 
+                            : 'bg-gray-700 hover:bg-gray-600'
+                        }`}
+                      >
+                        <div className="flex items-center space-x-3">
+                          <span className="text-lg">{option.icon}</span>
+                          <span>{option.name}</span>
+                        </div>
+                        <span className="px-2 py-1 rounded-full text-sm font-bold text-blue-300">
+                          {count}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
                 
                 {/* Lead count display */}
@@ -404,7 +424,7 @@ export default function Calling() {
                   <div className="space-y-3">
                     {/* Slot 1 - Column G (index 7) */}
                     <div className="bg-gray-700 rounded-lg p-3">
-                      <h3 className="text-sm font-semibold text-white mb-1">Slot 1 (8:00 AM - 12:00 PM)</h3>
+                      <h3 className="text-sm font-semibold text-white mb-1">Slot 1 (9:00 AM - 11:00 AM)</h3>
                       <div className="min-h-[40px] flex flex-col items-center justify-center w-full">
                         {currentLead?.[7] ? (() => {
                           const value = currentLead[7];
@@ -413,7 +433,7 @@ export default function Calling() {
                           const timestamp = splitIndex !== -1 ? value.slice(splitIndex) : '';
                           return (
                             <>
-                              <span className="font-bold text-green-400 text-sm">{status}</span>
+                              <span className="font-bold text-purple-300 text-sm">{status}</span>
                               {timestamp && <span className="text-gray-300 text-xs mt-1">{timestamp}</span>}
                             </>
                           );
@@ -425,7 +445,7 @@ export default function Calling() {
 
                     {/* Slot 2 - Column H (index 8) */}
                     <div className="bg-gray-700 rounded-lg p-3">
-                      <h3 className="text-sm font-semibold text-white mb-1">Slot 2 (12:01 PM - 2:30 PM)</h3>
+                      <h3 className="text-sm font-semibold text-white mb-1">Slot 2 (11:00 AM - 1:00 PM)</h3>
                       <div className="min-h-[40px] flex flex-col items-center justify-center w-full">
                         {currentLead?.[8] ? (() => {
                           const value = currentLead[8];
@@ -434,7 +454,7 @@ export default function Calling() {
                           const timestamp = splitIndex !== -1 ? value.slice(splitIndex) : '';
                           return (
                             <>
-                              <span className="font-bold text-green-400 text-sm">{status}</span>
+                              <span className="font-bold text-purple-400 text-sm">{status}</span>
                               {timestamp && <span className="text-gray-300 text-xs mt-1">{timestamp}</span>}
                             </>
                           );
@@ -446,7 +466,7 @@ export default function Calling() {
 
                     {/* Slot 3 - Column I (index 9) */}
                     <div className="bg-gray-700 rounded-lg p-3">
-                      <h3 className="text-sm font-semibold text-white mb-1">Slot 3 (2:31 PM - 4:30 PM)</h3>
+                      <h3 className="text-sm font-semibold text-white mb-1">Slot 3 (1:00 PM - 4:00 PM)</h3>
                       <div className="min-h-[40px] flex flex-col items-center justify-center w-full">
                         {currentLead?.[9] ? (() => {
                           const value = currentLead[9];
@@ -455,7 +475,7 @@ export default function Calling() {
                           const timestamp = splitIndex !== -1 ? value.slice(splitIndex) : '';
                           return (
                             <>
-                              <span className="font-bold text-green-400 text-sm">{status}</span>
+                              <span className="font-bold text-purple-400 text-sm">{status}</span>
                               {timestamp && <span className="text-gray-300 text-xs mt-1">{timestamp}</span>}
                             </>
                           );
@@ -467,7 +487,7 @@ export default function Calling() {
 
                     {/* Slot 4 - Column J (index 10) */}
                     <div className="bg-gray-700 rounded-lg p-3">
-                      <h3 className="text-sm font-semibold text-white mb-1">Slot 4 (4:31 PM - 8:00 AM)</h3>
+                      <h3 className="text-sm font-semibold text-white mb-1">Slot 4 (4:00 PM - 9:00 AM)</h3>
                       <div className="min-h-[40px] flex flex-col items-center justify-center w-full">
                         {currentLead?.[10] ? (() => {
                           const value = currentLead[10];
@@ -476,7 +496,7 @@ export default function Calling() {
                           const timestamp = splitIndex !== -1 ? value.slice(splitIndex) : '';
                           return (
                             <>
-                              <span className="font-bold text-green-400 text-sm">{status}</span>
+                              <span className="font-bold text-purple-400 text-sm">{status}</span>
                               {timestamp && <span className="text-gray-300 text-xs mt-1">{timestamp}</span>}
                             </>
                           );
@@ -485,6 +505,23 @@ export default function Calling() {
                         )}
                       </div>
                     </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Notes Display - Outside Call History Box */}
+              {currentLead?.[12] && (
+                <div className="mt-4 bg-gradient-to-br from-gray-800 to-gray-900 rounded-lg p-4 border border-gray-600 shadow-lg">
+                  <div className="flex items-center gap-2 mb-3">
+                    <svg className="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                    <h3 className="text-sm font-bold text-green-400">Notes</h3>
+                  </div>
+                  <div className="bg-gray-700 rounded-lg p-3 border border-gray-600">
+                    <p className="text-gray-200 text-sm leading-relaxed whitespace-pre-wrap">
+                      {currentLead[12]}
+                    </p>
                   </div>
                 </div>
               )}
@@ -560,7 +597,7 @@ export default function Calling() {
                             <th className="border border-gray-600 p-3 text-center text-white font-medium text-xl">Name</th>
                             <th className="border border-gray-600 p-3 text-center text-white font-medium text-xl">Phone</th>
                             <th className="border border-gray-600 p-3 text-center text-white font-medium text-xl">Email</th>
-                            <th className="border border-gray-600 p-3 text-center text-white font-medium text-xl">Date & Time</th>
+                            <th className="border border-gray-600 p-3 text-center text-white font-medium text-xl">Lead Received</th>
                             <th className="border border-gray-600 p-3 text-center text-white font-medium text-xl">Attempts</th>
                           </tr>
                         </thead>
@@ -649,6 +686,19 @@ export default function Calling() {
 
                           <strong>Limited seats hain</strong>, so don&apos;t miss this opportunity! 🚀
                         </p>
+                      </div>
+                    </div>
+
+                    {/* Notes Input Field */}
+                    <div className="mt-6 mb-4">
+                      <div className="max-w-2xl mx-auto">
+                        <textarea
+                          value={notes}
+                          onChange={(e) => setNotes(e.target.value)}
+                          placeholder="Enter any notes about this call or lead..."
+                          className="w-full p-3 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                          rows="3"
+                        />
                       </div>
                     </div>
 

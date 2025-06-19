@@ -76,8 +76,8 @@ async function getSheetId(sheetName) {
 
 export async function POST(request) {
   try {
-    const { rowIndex, status, owner, timeSlot } = await request.json();
-    console.log('Received update request:', { rowIndex, status, owner, timeSlot });
+    const { rowIndex, status, owner, timeSlot, notes } = await request.json();
+    console.log('Received update request:', { rowIndex, status, owner, timeSlot, notes });
 
     // Get current time for logging and time slot updates
     const currentTime = new Date().toLocaleString();
@@ -125,13 +125,13 @@ export async function POST(request) {
     // Determine which time slot column to update
     let timeSlotColumn = '';
     if (timeSlot && timeSlot.includes('Slot 1')) {
-      timeSlotColumn = 'G'; // Column G for Slot 1
+      timeSlotColumn = 'G'; // Column G for Slot 1 (9:00 AM - 11:00 AM)
     } else if (timeSlot && timeSlot.includes('Slot 2')) {
-      timeSlotColumn = 'H'; // Column H for Slot 2
+      timeSlotColumn = 'H'; // Column H for Slot 2 (11:00 AM - 1:00 PM)
     } else if (timeSlot && timeSlot.includes('Slot 3')) {
-      timeSlotColumn = 'I'; // Column I for Slot 3
+      timeSlotColumn = 'I'; // Column I for Slot 3 (1:00 PM - 4:00 PM)
     } else if (timeSlot && timeSlot.includes('Slot 4')) {
-      timeSlotColumn = 'J'; // Column J for Slot 4
+      timeSlotColumn = 'J'; // Column J for Slot 4 (4:00 PM - 9:00 AM)
     }
 
     // Update the status in column F (6th column)
@@ -153,6 +153,7 @@ export async function POST(request) {
     if (timeSlotColumn) {
       const timeSlotRange = `${owner.toLowerCase()}!${timeSlotColumn}${rowIndex}`;
       const timeSlotValue = `${status} (${currentTime})`;
+      
       console.log('Updating time slot range:', timeSlotRange, 'with value:', timeSlotValue);
       
       const timeSlotResponse = await sheets.spreadsheets.values.update({
@@ -165,6 +166,28 @@ export async function POST(request) {
       });
 
       console.log('Time slot update response:', timeSlotResponse.data);
+    }
+
+    // Update Notes column (Column L) if notes are provided
+    if (notes && notes.trim()) {
+      try {
+        const notesRange = `${owner.toLowerCase()}!L${rowIndex}`;
+        console.log('Updating notes range:', notesRange, 'with value:', notes.trim());
+        
+        const notesResponse = await sheets.spreadsheets.values.update({
+          spreadsheetId,
+          range: notesRange,
+          valueInputOption: 'RAW',
+          resource: {
+            values: [[notes.trim()]]
+          }
+        });
+
+        console.log('Notes update response:', notesResponse.data);
+      } catch (error) {
+        console.error('Error updating notes:', error);
+        // Don't fail the entire request if notes update fails
+      }
     }
 
     // Calculate and update the Number of Attempts column (Column K)

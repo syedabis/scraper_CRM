@@ -28,7 +28,7 @@ export async function GET(request) {
 
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId,
-      range: `${sheetName}!A:K`,
+      range: `${sheetName}!A:L`,
     });
 
     const rows = response.data.values || [];
@@ -38,9 +38,9 @@ export async function GET(request) {
 
     // Skip header row and include row numbers in the data
     const leadsWithRowNumbers = rows.slice(1).map((row, index) => {
-      // Pad the row to at least 11 columns (A-K)
+      // Pad the row to at least 12 columns (A-L)
       const paddedRow = [...row];
-      while (paddedRow.length < 11) {
+      while (paddedRow.length < 12) {
         paddedRow.push('');
       }
       
