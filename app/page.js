@@ -5,7 +5,7 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
       <div className="min-h-screen p-8 flex items-center justify-center">
-        <main className="flex flex-col gap-[32px] items-center max-w-4xl mx-auto">
+        <main className="flex flex-col gap-[32px] items-center max-w-6xl mx-auto">
           <div className="text-center space-y-4">
             <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
               DataCrumbs Sales Portal
@@ -16,6 +16,23 @@ export default function Home() {
           </div>
 
           <div className="flex gap-6 items-center flex-col sm:flex-row mt-8">
+            {/* Send Invoice Button */}
+            <a
+              href="https://payslipsdatacrumbs-87c5a52d19c0.herokuapp.com/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full sm:w-64 bg-gradient-to-br from-gray-800 to-gray-900 border border-gray-700 rounded-lg shadow-lg hover:shadow-green-500/20 transition-all duration-300 hover:scale-105"
+            >
+              <div className="p-6">
+                <div className="flex items-center gap-3">
+                  <svg className="w-6 h-6 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  <span className="font-medium text-green-400">Send Invoice</span>
+                </div>
+              </div>
+            </a>
+
             <Link
               href="/data-entry"
               className="w-full sm:w-64 bg-gradient-to-br from-gray-800 to-gray-900 border border-gray-700 rounded-lg shadow-lg hover:shadow-blue-500/20 transition-all duration-300 hover:scale-105"
@@ -43,8 +60,8 @@ export default function Home() {
                 </div>
               </div>
             </Link>
-        </div>
-      </main>
+          </div>
+        </main>
       </div>
     </div>
   );
