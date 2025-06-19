@@ -18,6 +18,9 @@ export default function Calling() {
   const [filteredLeads, setFilteredLeads] = useState([]);
   const [selectedStatus, setSelectedStatus] = useState('');
   const [showStatusPrompt, setShowStatusPrompt] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editData, setEditData] = useState({ name: '', email: '', phone: '' });
+  const [updatingLead, setUpdatingLead] = useState(false);
 
   const leadStatusOptions = [
     { name: 'New Leads', color: 'bg-blue-600 hover:bg-blue-700', icon: '📞' },
@@ -79,6 +82,72 @@ export default function Calling() {
 
   const handleStatusSelect = (status) => {
     filterLeadsByStatus(status);
+  };
+
+  const handleEditClick = () => {
+    if (!currentLead) return;
+    setEditData({
+      name: currentLead[3] || '',
+      email: currentLead[4] || '',
+      phone: currentLead[5] || ''
+    });
+    setIsEditing(true);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!currentLead || !selectedOwner) return;
+    
+    setUpdatingLead(true);
+    try {
+      const response = await fetch('/api/update-lead-info', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          rowIndex: currentLead[0],
+          owner: selectedOwner,
+          name: editData.name,
+          email: editData.email,
+          phone: editData.phone
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to update lead information');
+      }
+
+      setTooltipMessage('Lead information updated successfully!');
+      setShowTooltip(true);
+      setTimeout(() => setShowTooltip(false), 3000);
+
+      // Update local state
+      const updatedLeads = leads.map(lead => {
+        if (lead[0] === currentLead[0]) {
+          return [lead[0], lead[1], lead[2], editData.name, editData.email, editData.phone, lead[6]];
+        }
+        return lead;
+      });
+      setLeads(updatedLeads);
+      
+      // Re-filter leads after update
+      filterLeadsByStatus(selectedStatus, updatedLeads);
+      
+      setIsEditing(false);
+    } catch (error) {
+      console.error('Error updating lead information:', error);
+      setTooltipMessage(error.message || 'Failed to update lead information');
+      setShowTooltip(true);
+      setTimeout(() => setShowTooltip(false), 3000);
+    } finally {
+      setUpdatingLead(false);
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditing(false);
+    setEditData({ name: '', email: '', phone: '' });
   };
 
   const handlePrevious = () => {
@@ -253,6 +322,54 @@ export default function Calling() {
                 <div className="rounded-lg overflow-hidden">
                   <div className="p-3">
                     <div className="mb-6">
+                      <div className="flex justify-between items-center mb-4">
+                        <h2 className="text-2xl font-bold text-white">Lead Details</h2>
+                        {!isEditing ? (
+                          <button
+                            onClick={handleEditClick}
+                            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-all duration-200 flex items-center space-x-2"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
+                            <span>Edit</span>
+                          </button>
+                        ) : (
+                          <div className="flex space-x-2">
+                            <button
+                              onClick={handleSaveEdit}
+                              disabled={updatingLead}
+                              className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-all duration-200 flex items-center space-x-2 disabled:opacity-50"
+                            >
+                              {updatingLead ? (
+                                <>
+                                  <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                  </svg>
+                                  <span>Saving...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                  </svg>
+                                  <span>Save</span>
+                                </>
+                              )}
+                            </button>
+                            <button
+                              onClick={handleCancelEdit}
+                              className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg font-medium transition-all duration-200 flex items-center space-x-2"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                              <span>Cancel</span>
+                            </button>
+                          </div>
+                        )}
+                      </div>
                       <table className="w-full border-collapse">
                         <thead>
                           <tr className="bg-gray-700">
@@ -264,10 +381,48 @@ export default function Calling() {
                         </thead>
                         <tbody>
                           <tr>
-                            <td className="border border-gray-600 p-3 text-white whitespace-normal break-words text-center align-middle text-xl">{currentLead?.[3] || ''}</td>
-                            <td className="border border-gray-600 p-3 text-white text-center align-middle text-xl">{currentLead?.[5] || ''}</td>
-                            <td className="border border-gray-600 p-3 text-white whitespace-normal break-words text-center align-middle text-xl">{currentLead?.[4] || 'Not provided'}</td>
-                            <td className="border border-gray-600 p-3 text-white text-center align-middle text-xl">{currentLead?.[1] || ''} {currentLead?.[2] || ''}</td>
+                            <td className="border border-gray-600 p-3 text-center align-middle">
+                              {isEditing ? (
+                                <input
+                                  type="text"
+                                  value={editData.name}
+                                  onChange={(e) => setEditData({...editData, name: e.target.value})}
+                                  className="w-full bg-gray-700 text-white text-xl text-center border-none outline-none rounded px-2 py-1"
+                                  placeholder="Enter name"
+                                />
+                              ) : (
+                                <span className="text-white whitespace-normal break-words text-xl">{currentLead?.[3] || ''}</span>
+                              )}
+                            </td>
+                            <td className="border border-gray-600 p-3 text-center align-middle">
+                              {isEditing ? (
+                                <input
+                                  type="text"
+                                  value={editData.phone}
+                                  onChange={(e) => setEditData({...editData, phone: e.target.value})}
+                                  className="w-full bg-gray-700 text-white text-xl text-center border-none outline-none rounded px-2 py-1"
+                                  placeholder="Enter phone"
+                                />
+                              ) : (
+                                <span className="text-white text-xl">{currentLead?.[5] || ''}</span>
+                              )}
+                            </td>
+                            <td className="border border-gray-600 p-3 text-center align-middle">
+                              {isEditing ? (
+                                <input
+                                  type="email"
+                                  value={editData.email}
+                                  onChange={(e) => setEditData({...editData, email: e.target.value})}
+                                  className="w-full bg-gray-700 text-white text-xl text-center border-none outline-none rounded px-2 py-1"
+                                  placeholder="Enter email"
+                                />
+                              ) : (
+                                <span className="text-white whitespace-normal break-words text-xl">{currentLead?.[4] || 'Not provided'}</span>
+                              )}
+                            </td>
+                            <td className="border border-gray-600 p-3 text-center align-middle">
+                              <span className="text-white text-xl">{currentLead?.[1] || ''} {currentLead?.[2] || ''}</span>
+                            </td>
                           </tr>
                         </tbody>
                       </table>
