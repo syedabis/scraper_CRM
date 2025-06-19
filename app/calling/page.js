@@ -58,7 +58,7 @@ export default function Calling() {
     } else if (timeInMinutes >= 13 * 60 + 1 && timeInMinutes <= 16 * 60) {
       return 'Slot 3 (1:00 PM - 4:00 PM)';
     } else {
-      return 'Slot 4 (4:00 PM - 9:00 AM)';
+      return 'Slot 4 (4:00 PM - 6:00 PM)';
     }
   };
 
@@ -711,7 +711,7 @@ export default function Calling() {
 
                     {/* Slot 4 - Column J (index 10) */}
                     <div className="bg-gray-700 rounded-lg p-3">
-                      <h3 className="text-sm font-semibold text-white mb-1">Slot 4 (4:00 PM - 9:00 AM)</h3>
+                      <h3 className="text-sm font-semibold text-white mb-1">Slot 4 (4:00 PM - 6:00 PM)</h3>
                       <div className="min-h-[40px] flex flex-col items-center justify-center w-full">
                         {currentLead?.[10] ? (() => {
                           const value = currentLead[10];
