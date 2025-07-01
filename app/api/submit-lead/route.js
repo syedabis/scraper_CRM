@@ -17,7 +17,7 @@ async function getNextProspectNumber(sheetName) {
     // Get all values from the sheet
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: process.env.GOOGLE_SHEET_ID,
-      range: `${sheetName}!A:A`, // Get all values from column A (name column)
+      range: `${sheetName}!C:C`, // Get all values from column C (name column)
     });
 
     const values = response.data.values || [];
