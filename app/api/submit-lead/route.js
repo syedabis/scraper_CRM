@@ -64,6 +64,35 @@ export async function POST(request) {
     const data = await request.json();
     const { name, email, phoneNumber, countryCode, lead } = data;
 
+    const fullPhoneNumber = `${countryCode}${phoneNumber}`;
+
+    // Check for duplicate phone number before adding
+    try {
+      const existingLeadsResponse = await sheets.spreadsheets.values.get({
+        spreadsheetId: process.env.GOOGLE_SHEET_ID,
+        range: `${lead}!E:E`, // Column E contains phone numbers
+      });
+
+      const existingPhoneNumbers = existingLeadsResponse.data.values || [];
+      
+      // Check if phone number already exists (skip header row)
+      const isDuplicate = existingPhoneNumbers.slice(1).some(row => 
+        row[0] && row[0].toString().trim() === fullPhoneNumber.trim()
+      );
+
+      if (isDuplicate) {
+        console.log(`Duplicate phone number detected: ${fullPhoneNumber} in sheet ${lead}`);
+        return NextResponse.json({ 
+          success: false, 
+          error: 'Phone number already exists in the system',
+          duplicate: true 
+        }, { status: 409 });
+      }
+    } catch (error) {
+      console.error('Error checking for duplicates:', error);
+      // Continue with submission if duplicate check fails
+    }
+
     // Generate prospect name if no name is provided
     let finalName = name;
     if (!name || name.trim() === '') {
@@ -80,7 +109,7 @@ export async function POST(request) {
         time, // Time column
         finalName, // Name (or generated prospect name)
         email || '', // Email (optional)
-        `${countryCode}${phoneNumber}`, // Full phone number
+        fullPhoneNumber, // Full phone number
         '', // Status column (F) - empty initially
         '', // Slot 1 (G) - 9:00 AM - 11:00 AM - empty initially
         '', // Slot 2 (H) - 11:00 AM - 1:00 PM - empty initially

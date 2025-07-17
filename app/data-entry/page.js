@@ -67,6 +67,9 @@ export default function DataEntry() {
         setEmail('');
         setPhoneNumber('');
         setLead('');
+      } else if (response.status === 409 && data.duplicate) {
+        // Handle duplicate phone number
+        setSubmitStatus('duplicate');
       } else {
         setSubmitStatus('error');
       }
@@ -122,10 +125,14 @@ export default function DataEntry() {
             <div className={`text-center p-4 rounded-lg mb-6 ${
               submitStatus === 'success' 
                 ? 'bg-green-500/20 text-green-400 border border-green-500/20' 
+                : submitStatus === 'duplicate'
+                ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/20'
                 : 'bg-red-500/20 text-red-400 border border-red-500/20'
             }`}>
               {submitStatus === 'success' 
                 ? '✓ Lead submitted successfully!' 
+                : submitStatus === 'duplicate'
+                ? '⚠ This phone number already exists in the system. Please use a different number.'
                 : countryCode === '+92' && !isValidPakistanNumber(phoneNumber)
                   ? 'Please enter a valid 10-digit Pakistan number starting with 3'
                   : 'Failed to submit lead. Please try again.'}
