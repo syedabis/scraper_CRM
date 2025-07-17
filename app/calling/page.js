@@ -294,7 +294,9 @@ export default function Calling() {
       'Call Later': 'bg-yellow-600 hover:bg-yellow-700',
       'Client Lost': 'bg-gray-600 hover:bg-gray-700',
       'Confirmation': 'bg-blue-600 hover:bg-blue-700',
-      'Paid': 'bg-purple-600 hover:bg-purple-700'
+      'Paid': 'bg-purple-600 hover:bg-purple-700',
+      'Demo': 'bg-indigo-600 hover:bg-indigo-700',
+      'Form Filled': 'bg-teal-600 hover:bg-teal-700'
     };
 
     return `${baseClass} ${statusColors[status]} ${isUpdating ? 'opacity-75 cursor-wait' : ''}`;
@@ -323,6 +325,10 @@ export default function Calling() {
         return 'bg-blue-600';
       case 'Paid':
         return 'bg-purple-600';
+      case 'Demo':
+        return 'bg-indigo-600';
+      case 'Form Filled':
+        return 'bg-teal-600';
       default:
         return 'bg-gray-600';
     }
