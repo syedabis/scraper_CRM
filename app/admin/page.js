@@ -15,12 +15,12 @@ export default function AdminPanel() {
     setAdminLoading(true);
     try {
       const prettyResponse = await fetch("/api/fetch-leads?sheetName=Pretty");
-      const asifResponse = await fetch("/api/fetch-leads?sheetName=Asif");
+      const kainatResponse = await fetch("/api/fetch-leads?sheetName=Kainat");
       const prettyData = prettyResponse.ok ? await prettyResponse.json() : [];
-      const asifData = asifResponse.ok ? await asifResponse.json() : [];
+      const kainatData = kainatResponse.ok ? await kainatResponse.json() : [];
       const prettyLeadsWithOwner = prettyData.map((lead) => [...lead, "Pretty"]);
-      const asifLeadsWithOwner = asifData.map((lead) => [...lead, "Asif"]);
-      setAllLeads([...prettyLeadsWithOwner, ...asifLeadsWithOwner]);
+      const kainatLeadsWithOwner = kainatData.map((lead) => [...lead, "Kainat"]);
+      setAllLeads([...prettyLeadsWithOwner, ...kainatLeadsWithOwner]);
     } catch (error) {
       setAllLeads([]);
     } finally {
@@ -188,7 +188,7 @@ export default function AdminPanel() {
 
         {/* Date-specific Stats */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto mb-8">
-          {['Pretty', 'Asif'].map((agent) => {
+          {['Pretty', 'Kainat'].map((agent) => {
             const dateStats = getDateStats(agent);
             return (
               <div key={`${agent}-date`} className="bg-gray-800 rounded-lg p-6 shadow-lg border border-gray-700">
@@ -212,7 +212,7 @@ export default function AdminPanel() {
 
         {/* Overall Statistics */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
-          {['Pretty', 'Asif'].map((agent) => {
+          {['Pretty', 'Kainat'].map((agent) => {
             const stats = agentStats(agent);
             return (
               <div key={agent} className="bg-gray-800 rounded-lg p-6 shadow-lg">

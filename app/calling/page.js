@@ -362,34 +362,34 @@ export default function Calling() {
       
       // If no owner is selected, fetch from both owners
       if (!selectedOwner) {
-        const [prettyResponse, asifResponse] = await Promise.all([
+        const [prettyResponse, kainatResponse] = await Promise.all([
           fetch('/api/fetch-leads?sheetName=Pretty'),
-          fetch('/api/fetch-leads?sheetName=Asif')
+          fetch('/api/fetch-leads?sheetName=Kainat')
         ]);
         
         const prettyData = prettyResponse.ok ? await prettyResponse.json() : [];
-        const asifData = asifResponse.ok ? await asifResponse.json() : [];
+        const kainatData = kainatResponse.ok ? await kainatResponse.json() : [];
         
         // Add owner information to each lead
         const prettyLeads = prettyData.map(lead => [...lead, 'Pretty']);
-        const asifLeads = asifData.map(lead => [...lead, 'Asif']);
+        const kainatLeads = kainatData.map(lead => [...lead, 'Kainat']);
         
-        allLeads = [...prettyLeads, ...asifLeads];
+        allLeads = [...prettyLeads, ...kainatLeads];
       } else {
         // If owner is selected, still search across both owners
-        const [prettyResponse, asifResponse] = await Promise.all([
+        const [prettyResponse, kainatResponse] = await Promise.all([
           fetch('/api/fetch-leads?sheetName=Pretty'),
-          fetch('/api/fetch-leads?sheetName=Asif')
+          fetch('/api/fetch-leads?sheetName=Kainat')
         ]);
         
         const prettyData = prettyResponse.ok ? await prettyResponse.json() : [];
-        const asifData = asifResponse.ok ? await asifResponse.json() : [];
+        const kainatData = kainatResponse.ok ? await kainatResponse.json() : [];
         
         // Add owner information to each lead
         const prettyLeads = prettyData.map(lead => [...lead, 'Pretty']);
-        const asifLeads = asifData.map(lead => [...lead, 'Asif']);
+        const kainatLeads = kainatData.map(lead => [...lead, 'Kainat']);
         
-        allLeads = [...prettyLeads, ...asifLeads];
+        allLeads = [...prettyLeads, ...kainatLeads];
       }
       
       // Search through all leads by phone number (index 5)
@@ -545,7 +545,7 @@ export default function Calling() {
               >
                 <option value="">Select Lead Owner</option>
                 <option value="Pretty">Pretty</option>
-                <option value="Asif">Asif</option>
+                <option value="Kainat">Kainat</option>
               </select>
             </div>
 

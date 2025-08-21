@@ -450,7 +450,7 @@ export default function DataEntry() {
                   >
                     <option value="" className="bg-gray-800">Select Lead Owner</option>
                     <option value="pretty" className="bg-gray-800">Pretty</option>
-                    <option value="asif" className="bg-gray-800">Asif</option>
+                    <option value="kainat" className="bg-gray-800">Kainat</option>
                   </select>
                 </div>
               </div>
