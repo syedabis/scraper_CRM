@@ -85,6 +85,7 @@ export default function DataEntry() {
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
       <div className="min-h-screen p-6 relative">
         {/* Send Invoice Button - Absolute positioned at top left */}
+        
         <div className="absolute top-6 left-6 z-10">
           <a
             href="https://payslips-bootcamp1-19de08d23749.herokuapp.com/"
