@@ -1,11 +1,10 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
 import React from "react";
+import AppShell from "../components/AppShell";
 
 export default function AdminPanel() {
-  const router = useRouter();
   const [allLeads, setAllLeads] = useState([]);
   const [adminLoading, setAdminLoading] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
@@ -133,47 +132,24 @@ export default function AdminPanel() {
     };
   };
 
-  return (
-    <div className="min-h-screen bg-gray-900 py-8 px-1 sm:px-2 lg:px-4 relative flex items-center justify-center">
-      <div className="max-w-7xl mx-auto relative w-full">
-        <div className="flex items-center justify-between mb-8">
-          {/* Home Button */}
-          <div className="flex-shrink-0">
-            <button
-              onClick={() => router.push("/")}
-              className="inline-flex items-center px-6 py-3 bg-gradient-to-br from-gray-800 to-gray-900 border border-gray-700 rounded-lg shadow-lg hover:shadow-blue-500/20 transition-all duration-300 hover:scale-105"
-            >
-              <svg className="w-5 h-5 mr-2 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-              </svg>
-              <span className="font-medium text-blue-400">Home</span>
-            </button>
-          </div>
-          
-          {/* Admin Panel Title */}
-          <div className="flex-1 text-center">
-            <h1 className="text-3xl font-bold text-white">Admin Panel</h1>
-          </div>
-          
-          {/* Refresh Button */}
-          <div className="flex-shrink-0">
-            <button
-              onClick={fetchAllLeads}
-              className="inline-flex items-center px-6 py-3 bg-gradient-to-br from-green-700 to-green-900 border border-green-700 rounded-lg shadow-lg hover:shadow-green-500/20 transition-all duration-300 hover:scale-105"
-              disabled={adminLoading}
-            >
-              <svg className={`w-5 h-5 mr-2 text-green-400 ${adminLoading ? "animate-spin" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
-              <span className="font-medium text-green-400">{adminLoading ? "Refreshing..." : "Refresh Analytics"}</span>
-            </button>
-          </div>
-        </div>
+  const refreshAction = (
+    <button
+      onClick={fetchAllLeads}
+      disabled={adminLoading}
+      className="inline-flex items-center gap-2 px-4 py-2 bg-primary-container text-on-primary-container rounded-lg hover:bg-primary hover:text-on-primary transition-colors text-label-md disabled:opacity-60"
+    >
+      <span className={`material-symbols-outlined text-[18px] ${adminLoading ? "animate-spin" : ""}`}>refresh</span>
+      {adminLoading ? "Refreshing..." : "Refresh Analytics"}
+    </button>
+  );
 
+  return (
+    <AppShell title="Admin Panel" search={refreshAction}>
+      <div className="flex flex-col gap-8">
         {/* Date Selector */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center gap-4 bg-gray-800 rounded-lg p-4">
-            <label htmlFor="date-selector" className="text-white font-medium">
+        <div className="flex justify-center">
+          <div className="inline-flex items-center gap-4 bg-surface-container rounded-lg border border-outline-variant p-4">
+            <label htmlFor="date-selector" className="text-on-surface font-medium text-body-md">
               Select Date:
             </label>
             <input
@@ -181,28 +157,26 @@ export default function AdminPanel() {
               type="date"
               value={selectedDate}
               onChange={(e) => setSelectedDate(e.target.value)}
-              className="px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="px-4 py-2 bg-surface-container-high border border-outline-variant rounded-lg text-on-surface outline-none focus:ring-1 focus:ring-primary focus:border-primary"
             />
           </div>
         </div>
 
         {/* Date-specific Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto w-full">
           {['Pretty', 'Kainat'].map((agent) => {
             const dateStats = getDateStats(agent);
             return (
-              <div key={`${agent}-date`} className="bg-gray-800 rounded-lg p-6 shadow-lg border border-gray-700">
-                <h3 className="text-xl font-bold text-white mb-4 text-center">{agent}&apos;s Activity on {selectedDate}</h3>
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-gradient-to-br from-blue-600 to-blue-700 p-4 rounded-lg text-center">
-                      <div className="text-white text-2xl font-bold">{dateStats.newLeadsAdded}</div>
-                      <div className="text-blue-100 text-sm">New Leads Added</div>
-                    </div>
-                    <div className="bg-gradient-to-br from-green-600 to-green-700 p-4 rounded-lg text-center">
-                      <div className="text-white text-2xl font-bold">{dateStats.callsMade}</div>
-                      <div className="text-green-100 text-sm">Calls Made</div>
-                    </div>
+              <div key={`${agent}-date`} className="bg-surface-container rounded-xl border border-outline-variant p-6">
+                <h3 className="text-headline-sm font-semibold text-on-surface mb-4 text-center">{agent}&apos;s Activity on {selectedDate}</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-primary-container p-4 rounded-lg text-center">
+                    <div className="text-on-primary-container text-2xl font-bold">{dateStats.newLeadsAdded}</div>
+                    <div className="text-on-primary-container text-label-sm">New Leads Added</div>
+                  </div>
+                  <div className="bg-secondary-container p-4 rounded-lg text-center">
+                    <div className="text-on-secondary-container text-2xl font-bold">{dateStats.callsMade}</div>
+                    <div className="text-on-secondary-container text-label-sm">Calls Made</div>
                   </div>
                 </div>
               </div>
@@ -211,33 +185,33 @@ export default function AdminPanel() {
         </div>
 
         {/* Overall Statistics */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto w-full">
           {['Pretty', 'Kainat'].map((agent) => {
             const stats = agentStats(agent);
             return (
-              <div key={agent} className="bg-gray-800 rounded-lg p-6 shadow-lg">
-                <h3 className="text-xl font-bold text-white mb-4 text-center">{agent}&apos;s Overall Statistics</h3>
+              <div key={agent} className="bg-surface-container rounded-xl border border-outline-variant p-6">
+                <h3 className="text-headline-sm font-semibold text-on-surface mb-4 text-center">{agent}&apos;s Overall Statistics</h3>
                 <div className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-gradient-to-br from-blue-600 to-blue-700 p-4 rounded-lg text-center">
-                      <div className="text-white text-2xl font-bold">{stats.totalLeads}</div>
-                      <div className="text-blue-100 text-sm">Total Leads</div>
+                    <div className="bg-primary-container p-4 rounded-lg text-center">
+                      <div className="text-on-primary-container text-2xl font-bold">{stats.totalLeads}</div>
+                      <div className="text-on-primary-container text-label-sm">Total Leads</div>
                     </div>
-                    <div className="bg-gradient-to-br from-green-600 to-green-700 p-4 rounded-lg text-center">
-                      <div className="text-white text-2xl font-bold">{stats.paid}</div>
-                      <div className="text-green-100 text-sm">Paid Leads</div>
+                    <div className="bg-secondary-container p-4 rounded-lg text-center">
+                      <div className="text-on-secondary-container text-2xl font-bold">{stats.paid}</div>
+                      <div className="text-on-secondary-container text-label-sm">Paid Leads</div>
                     </div>
                   </div>
-                  <div className="space-y-3 text-sm">
-                    <div className="flex justify-between"><span className="text-gray-300">New Leads:</span><span className="text-blue-300 font-bold">{stats.newLeads}</span></div>
-                    <div className="flex justify-between"><span className="text-gray-300">Call Received:</span><span className="text-green-300 font-bold">{stats.callReceived}</span></div>
-                    <div className="flex justify-between"><span className="text-gray-300">Not Received:</span><span className="text-red-300 font-bold">{stats.notReceived}</span></div>
-                    <div className="flex justify-between"><span className="text-gray-300">Call Later:</span><span className="text-yellow-300 font-bold">{stats.callLater}</span></div>
-                    <div className="flex justify-between"><span className="text-gray-300">Client Lost:</span><span className="text-gray-300 font-bold">{stats.clientLost}</span></div>
-                    <div className="flex justify-between"><span className="text-gray-300">Confirmation:</span><span className="text-blue-300 font-bold">{stats.confirmation}</span></div>
-                    <div className="flex justify-between"><span className="text-gray-300">Demo:</span><span className="text-indigo-300 font-bold">{stats.demo}</span></div>
-                    <div className="flex justify-between"><span className="text-gray-300">Form Filled:</span><span className="text-teal-300 font-bold">{stats.formFilled}</span></div>
-                    <div className="flex justify-between"><span className="text-gray-300">Conversion Rate:</span><span className="text-purple-300 font-bold">{stats.conversionRate}%</span></div>
+                  <div className="space-y-3 text-body-md">
+                    <div className="flex justify-between"><span className="text-on-surface-variant">New Leads:</span><span className="text-primary font-bold">{stats.newLeads}</span></div>
+                    <div className="flex justify-between"><span className="text-on-surface-variant">Call Received:</span><span className="text-secondary font-bold">{stats.callReceived}</span></div>
+                    <div className="flex justify-between"><span className="text-on-surface-variant">Not Received:</span><span className="text-error font-bold">{stats.notReceived}</span></div>
+                    <div className="flex justify-between"><span className="text-on-surface-variant">Call Later:</span><span className="text-tertiary font-bold">{stats.callLater}</span></div>
+                    <div className="flex justify-between"><span className="text-on-surface-variant">Client Lost:</span><span className="text-on-surface font-bold">{stats.clientLost}</span></div>
+                    <div className="flex justify-between"><span className="text-on-surface-variant">Confirmation:</span><span className="text-primary font-bold">{stats.confirmation}</span></div>
+                    <div className="flex justify-between"><span className="text-on-surface-variant">Demo:</span><span className="text-primary font-bold">{stats.demo}</span></div>
+                    <div className="flex justify-between"><span className="text-on-surface-variant">Form Filled:</span><span className="text-secondary font-bold">{stats.formFilled}</span></div>
+                    <div className="flex justify-between"><span className="text-on-surface-variant">Conversion Rate:</span><span className="text-secondary font-bold">{stats.conversionRate}%</span></div>
                   </div>
                 </div>
               </div>
@@ -245,6 +219,6 @@ export default function AdminPanel() {
           })}
         </div>
       </div>
-    </div>
+    </AppShell>
   );
-} 
+}

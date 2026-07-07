@@ -1,35 +1,11 @@
-import localFont from "next/font/local";
+import { ClerkProvider } from "@clerk/nextjs";
+import { Geist } from "next/font/google";
 import "./globals.css";
 
-const poppins = localFont({
-  variable: "--font-poppins",
-  src: [
-    {
-      path: "../public/fonts/Poppins-Light.woff2",
-      weight: "300",
-      style: "normal",
-    },
-    {
-      path: "../public/fonts/Poppins-Regular.woff2",
-      weight: "400",
-      style: "normal",
-    },
-    {
-      path: "../public/fonts/Poppins-Medium.woff2",
-      weight: "500",
-      style: "normal",
-    },
-    {
-      path: "../public/fonts/Poppins-SemiBold.woff2",
-      weight: "600",
-      style: "normal",
-    },
-    {
-      path: "../public/fonts/Poppins-Bold.woff2",
-      weight: "700",
-      style: "normal",
-    },
-  ],
+const geist = Geist({
+  variable: "--font-geist",
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
 });
 
 export const metadata = {
@@ -39,12 +15,16 @@ export const metadata = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en">
-      <body
-        className={`${poppins.variable} antialiased`}
-      >
-        {children}
-      </body>
-    </html>
+    <ClerkProvider>
+      <html lang="en" className={geist.variable}>
+        <head>
+          <link
+            href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
+            rel="stylesheet"
+          />
+        </head>
+        <body className="antialiased">{children}</body>
+      </html>
+    </ClerkProvider>
   );
 }

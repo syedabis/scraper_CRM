@@ -1,23 +1,18 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
+import AppShell from '../components/AppShell';
 
 export default function Calling() {
-  const [selectedLead, setSelectedLead] = useState('');
   const [leads, setLeads] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
   const [selectedOwner, setSelectedOwner] = useState('');
-  const [leadStatus, setLeadStatus] = useState({});
   const [tooltipMessage, setTooltipMessage] = useState('');
   const [showTooltip, setShowTooltip] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState('');
   const [filteredLeads, setFilteredLeads] = useState([]);
   const [selectedStatus, setSelectedStatus] = useState('');
-  const [showStatusPrompt, setShowStatusPrompt] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editData, setEditData] = useState({ name: '', email: '', phone: '' });
   const [updatingLead, setUpdatingLead] = useState(false);
@@ -27,16 +22,31 @@ export default function Calling() {
   const [searchResults, setSearchResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
 
-  const leadStatusOptions = [
-    { name: 'New Leads', color: 'bg-blue-600 hover:bg-blue-700', icon: '📞' },
-    { name: 'Call Received', color: 'bg-green-600 hover:bg-green-700', icon: '✅' },
-    { name: 'Not Received', color: 'bg-red-600 hover:bg-red-700', icon: '❌' },
-    { name: 'Call Later', color: 'bg-yellow-600 hover:bg-yellow-700', icon: '⏰' },
-    { name: 'Client Lost', color: 'bg-amber-700 hover:bg-amber-800', icon: '💔' },
-    { name: 'Confirmation', color: 'bg-blue-600 hover:bg-blue-700', icon: '🤝' },
-    { name: 'Paid', color: 'bg-purple-600 hover:bg-purple-700', icon: '💰' },
-    { name: 'Demo', color: 'bg-indigo-600 hover:bg-indigo-700', icon: '🎯' },
-    { name: 'Form Filled', color: 'bg-teal-600 hover:bg-teal-700', icon: '📝' }
+  const leadCategories = [
+    { name: 'New Leads', icon: 'group_add' },
+    { name: 'Call Received', icon: 'call_received' },
+    { name: 'Not Received', icon: 'call_missed' },
+    { name: 'Call Later', icon: 'schedule' },
+    { name: 'Client Lost', icon: 'person_off' },
+    { name: 'Confirmation', icon: 'verified' },
+    { name: 'Paid', icon: 'payments' },
+    { name: 'Demo', icon: 'present_to_all' },
+    { name: 'Form Filled', icon: 'assignment' },
+    { name: 'Group Lead', icon: 'groups' },
+    { name: 'Awaiting Response', icon: 'hourglass_top' },
+  ];
+
+  const statusActions = [
+    { status: 'Call Received', label: 'Call Received', className: 'bg-secondary-container text-on-secondary-container hover:bg-secondary hover:text-on-secondary border border-secondary' },
+    { status: 'Not Received', label: 'Not Received', className: 'bg-error-container text-on-error-container hover:bg-error hover:text-on-error border border-transparent' },
+    { status: 'Call Later', label: 'Please Call Later', className: 'bg-tertiary-container text-on-tertiary-container hover:bg-tertiary hover:text-on-tertiary border border-transparent' },
+    { status: 'Client Lost', label: 'Client Lost', className: 'bg-surface-container-highest text-on-surface-variant hover:bg-surface-bright border border-transparent' },
+    { status: 'Confirmation', label: 'Confirmation', className: 'bg-primary-container text-on-primary-container hover:bg-primary hover:text-on-primary border border-transparent' },
+    { status: 'Paid', label: 'Paid', className: 'bg-surface-container-highest text-on-surface-variant hover:bg-surface-bright border border-transparent' },
+    { status: 'Demo', label: 'Demo', className: 'bg-primary-container text-on-primary-container hover:bg-primary hover:text-on-primary border border-transparent' },
+    { status: 'Form Filled', label: 'Form Filled', className: 'bg-surface-container-highest text-on-surface-variant hover:bg-surface-bright border border-transparent' },
+    { status: 'Group Lead', label: 'Group Lead', className: 'bg-surface-container-highest text-on-surface-variant hover:bg-surface-bright border border-transparent' },
+    { status: 'Awaiting Response', label: 'Awaiting Response', className: 'bg-tertiary-container text-on-tertiary-container hover:bg-tertiary hover:text-on-tertiary border border-transparent' },
   ];
 
   // Function to get current Pakistani time slot
@@ -46,7 +56,7 @@ export default function Calling() {
     const utcTime = now.getTime();
     const pakistanOffset = 5 * 60 * 60 * 1000; // Pakistan is UTC+5
     const pakistanTime = new Date(utcTime + pakistanOffset);
-    
+
     const hours = pakistanTime.getUTCHours();
     const minutes = pakistanTime.getUTCMinutes();
     const timeInMinutes = hours * 60 + minutes;
@@ -67,10 +77,10 @@ export default function Calling() {
     const updateTimeSlot = () => {
       setCurrentTimeSlot(getCurrentTimeSlot());
     };
-    
+
     updateTimeSlot(); // Set initial time slot
     const interval = setInterval(updateTimeSlot, 60000); // Update every minute
-    
+
     return () => clearInterval(interval);
   }, []);
 
@@ -79,7 +89,10 @@ export default function Calling() {
     setLoading(true);
     try {
       const response = await fetch(`/api/fetch-leads?sheetName=${encodeURIComponent(owner)}`);
-      if (!response.ok) throw new Error('Failed to fetch leads');
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to fetch leads');
+      }
       const data = await response.json();
       setLeads(data);
       return data; // Do NOT call filterLeadsByStatus here!
@@ -95,7 +108,7 @@ export default function Calling() {
   // New function to re-fetch leads while preserving current status and position
   const refreshLeads = async (owner) => {
     if (!owner) return;
-    
+
     try {
       const response = await fetch(`/api/fetch-leads?sheetName=${encodeURIComponent(owner)}`);
       if (!response.ok) {
@@ -103,11 +116,11 @@ export default function Calling() {
       }
       const data = await response.json();
       setLeads(data);
-      
+
       // Preserve current status filter and find the same lead
       const currentRowNumber = currentLead?.[0];
       filterLeadsByStatus(selectedStatus, data);
-      
+
       // Find and set the same lead position
       if (currentRowNumber) {
         const newIndex = filteredLeads.findIndex(lead => lead[0] === currentRowNumber);
@@ -123,7 +136,6 @@ export default function Calling() {
   const filterLeadsByStatus = (status, leadsToFilter = leads) => {
     setSelectedStatus(status);
     let filtered;
-    console.log('Statuses in leads:', leadsToFilter.map(l => l[6]));
     if (status === 'New Leads') {
       filtered = leadsToFilter.filter(lead => !lead[6] || lead[6].trim() === '');
     } else {
@@ -140,7 +152,11 @@ export default function Calling() {
     const owner = e.target.value;
     setSelectedOwner(owner);
     if (owner) {
-      fetchLeads(owner);
+      fetchLeads(owner).catch((error) => {
+        setTooltipMessage(error.message || `Failed to load leads for ${owner}`);
+        setShowTooltip(true);
+        setTimeout(() => setShowTooltip(false), 4000);
+      });
     } else {
       setLeads([]);
       setFilteredLeads([]);
@@ -164,7 +180,7 @@ export default function Calling() {
 
   const handleSaveEdit = async () => {
     if (!currentLead || !selectedOwner) return;
-    
+
     setUpdatingLead(true);
     try {
       const response = await fetch('/api/update-lead-info', {
@@ -192,7 +208,7 @@ export default function Calling() {
 
       // Re-fetch leads to get the latest data
       await refreshLeads(selectedOwner);
-      
+
       setIsEditing(false);
     } catch (error) {
       console.error('Error updating lead information:', error);
@@ -244,7 +260,6 @@ export default function Calling() {
         timeSlot: currentTimeSlot,
         notes: notes.trim()
       };
-      console.log('Sending update-lead-status payload:', payload);
       const response = await fetch('/api/update-lead-status', {
         method: 'POST',
         headers: {
@@ -284,71 +299,10 @@ export default function Calling() {
     }
   };
 
-  const getStatusButtonClass = (status) => {
-    const baseClass = "px-4 py-2 rounded-lg font-medium transition-all duration-200 flex items-center justify-center min-w-[120px]";
-    const isUpdating = updatingStatus === status;
-    
-    const statusColors = {
-      'Call Received': 'bg-green-600 hover:bg-green-700',
-      'Not Received': 'bg-red-600 hover:bg-red-700',
-      'Call Later': 'bg-yellow-600 hover:bg-yellow-700',
-      'Client Lost': 'bg-gray-600 hover:bg-gray-700',
-      'Confirmation': 'bg-blue-600 hover:bg-blue-700',
-      'Paid': 'bg-purple-600 hover:bg-purple-700',
-      'Demo': 'bg-indigo-600 hover:bg-indigo-700',
-      'Form Filled': 'bg-teal-600 hover:bg-teal-700'
-    };
-
-    return `${baseClass} ${statusColors[status]} ${isUpdating ? 'opacity-75 cursor-wait' : ''}`;
-  };
-
-  const getCurrentStatus = () => {
-    return leadStatus[currentIndex] || currentLead?.[5] || ''; // Column F (index 5) contains status
-  };
-
-  // Helper function to get status color
-  const getStatusColor = (status) => {
-    if (!status) return 'bg-gray-600';
-    
-    const statusText = status.split(' (')[0]; // Remove timestamp part
-    
-    switch (statusText) {
-      case 'Call Received':
-        return 'bg-green-600';
-      case 'Not Received':
-        return 'bg-red-600';
-      case 'Call Later':
-        return 'bg-yellow-600';
-      case 'Client Lost':
-        return 'bg-gray-600';
-      case 'Confirmation':
-        return 'bg-blue-600';
-      case 'Paid':
-        return 'bg-purple-600';
-      case 'Demo':
-        return 'bg-indigo-600';
-      case 'Form Filled':
-        return 'bg-teal-600';
-      default:
-        return 'bg-gray-600';
-    }
-  };
-
-  // Utility function to calculate number of attempts from slot data
-  const calculateAttempts = (lead) => {
-    let attempts = 0;
-    for (let i = 7; i <= 10; i++) {
-      if (lead[i] && lead[i].trim() !== '') {
-        attempts++;
-      }
-    }
-    return attempts;
-  };
-
   // Search function for phone numbers
   const handleSearch = async (query) => {
     setSearchQuery(query);
-    
+
     if (!query.trim()) {
       setSearchResults([]);
       setIsSearching(false);
@@ -356,51 +310,29 @@ export default function Calling() {
     }
 
     setIsSearching(true);
-    
+
     try {
-      let allLeads = [];
-      
-      // If no owner is selected, fetch from both owners
-      if (!selectedOwner) {
-        const [prettyResponse, kainatResponse] = await Promise.all([
-          fetch('/api/fetch-leads?sheetName=Pretty'),
-          fetch('/api/fetch-leads?sheetName=Kainat')
-        ]);
-        
-        const prettyData = prettyResponse.ok ? await prettyResponse.json() : [];
-        const kainatData = kainatResponse.ok ? await kainatResponse.json() : [];
-        
-        // Add owner information to each lead
-        const prettyLeads = prettyData.map(lead => [...lead, 'Pretty']);
-        const kainatLeads = kainatData.map(lead => [...lead, 'Kainat']);
-        
-        allLeads = [...prettyLeads, ...kainatLeads];
-      } else {
-        // If owner is selected, still search across both owners
-        const [prettyResponse, kainatResponse] = await Promise.all([
-          fetch('/api/fetch-leads?sheetName=Pretty'),
-          fetch('/api/fetch-leads?sheetName=Kainat')
-        ]);
-        
-        const prettyData = prettyResponse.ok ? await prettyResponse.json() : [];
-        const kainatData = kainatResponse.ok ? await kainatResponse.json() : [];
-        
-        // Add owner information to each lead
-        const prettyLeads = prettyData.map(lead => [...lead, 'Pretty']);
-        const kainatLeads = kainatData.map(lead => [...lead, 'Kainat']);
-        
-        allLeads = [...prettyLeads, ...kainatLeads];
-      }
-      
+      const [prettyResponse, kainatResponse] = await Promise.all([
+        fetch('/api/fetch-leads?sheetName=Pretty'),
+        fetch('/api/fetch-leads?sheetName=Kainat')
+      ]);
+
+      const prettyData = prettyResponse.ok ? await prettyResponse.json() : [];
+      const kainatData = kainatResponse.ok ? await kainatResponse.json() : [];
+
+      // Add owner information to each lead
+      const prettyLeads = prettyData.map(lead => [...lead, 'Pretty']);
+      const kainatLeads = kainatData.map(lead => [...lead, 'Kainat']);
+
+      const allLeads = [...prettyLeads, ...kainatLeads];
+
       // Search through all leads by phone number (index 5)
       const results = allLeads.filter(lead => {
         const phoneNumber = lead[5] || '';
-        // Convert both to strings and search for partial matches
         return phoneNumber.toString().includes(query.toString());
       });
 
       setSearchResults(results);
-      console.log('Search results:', results.map(l => ({ phone: l[5], status: l[6] })));
     } catch (error) {
       console.error('Error searching leads:', error);
       setSearchResults([]);
@@ -414,7 +346,6 @@ export default function Calling() {
     const leadOwner = lead[lead.length - 1];
     const leadRowNumber = lead[0];
     const leadStatus = lead[6] || 'New Leads';
-    console.log('Navigating to lead:', lead, 'Status in search result:', leadStatus);
 
     let leadsData = leads;
     if (leadOwner !== selectedOwner) {
@@ -434,639 +365,411 @@ export default function Calling() {
     setSearchResults([]);
   };
 
-  // Debug: Log the currentLead used in Call History
-  if (typeof window !== 'undefined' && currentLead) {
-    console.log('Call History currentLead:', currentLead);
-  }
+  const getCategoryCount = (name) => {
+    if (name === 'New Leads') {
+      return leads.filter(lead => !lead[6] || lead[6].trim() === '').length;
+    }
+    return leads.filter(lead => lead[6] === name).length;
+  };
 
-  const router = useRouter();
+  const renderSlotHistory = (index, slotName, timeRange) => {
+    const value = currentLead?.[index];
+    let status = null;
+    let timestamp = '';
+    if (value) {
+      const splitIndex = value.indexOf('(');
+      status = splitIndex !== -1 ? value.slice(0, splitIndex).trim() : value;
+      timestamp = splitIndex !== -1 ? value.slice(splitIndex) : '';
+    }
+    return (
+      <div className="bg-surface-container-high rounded-lg p-3 flex flex-col gap-1" key={slotName}>
+        <div className="flex flex-col">
+          <span className="text-label-sm font-semibold text-on-surface-variant uppercase tracking-wider">{slotName}</span>
+          <span className="text-label-sm text-on-surface-variant/70">{timeRange}</span>
+        </div>
+        {value ? (
+          <div className="flex flex-col gap-0.5">
+            <span className="font-semibold text-primary text-body-md truncate">{status}</span>
+            {timestamp && <span className="text-on-surface-variant text-label-sm truncate">{timestamp}</span>}
+          </div>
+        ) : (
+          <span className="text-on-surface-variant text-label-sm">No call made</span>
+        )}
+      </div>
+    );
+  };
+
+  const search = (
+    <div className="relative w-full max-w-md">
+      <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-sm">search</span>
+      <input
+        className="w-full bg-surface-container-high border border-outline-variant rounded-full py-2 pl-10 pr-4 text-body-md text-on-surface focus:border-primary focus:ring-1 focus:ring-primary transition-all outline-none"
+        placeholder="Search by phone number..."
+        type="text"
+        value={searchQuery}
+        onChange={(e) => handleSearch(e.target.value)}
+      />
+      {searchResults.length > 0 && searchQuery && (
+        <div className="absolute top-full left-0 right-0 mt-1 bg-surface-container-high border border-outline-variant rounded-lg shadow-lg z-50 max-h-60 overflow-y-auto themed-scrollbar">
+          {searchResults.map((lead, index) => (
+            <button
+              key={index}
+              onClick={() => navigateToLead(lead)}
+              className="w-full p-3 text-left hover:bg-surface-container-highest border-b border-outline-variant last:border-b-0 transition-colors"
+            >
+              <div className="text-on-surface text-body-md">{lead[5] || 'No Phone'}</div>
+              <div className="text-primary text-label-sm">{lead[3] || 'No Name'}</div>
+              <div className="flex justify-between items-center">
+                <span className="text-on-surface-variant text-label-sm">{lead[6] || 'New Lead'}</span>
+                <span className="text-secondary text-label-sm font-medium">{lead[lead.length - 1]}</span>
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+      {searchQuery && !isSearching && searchResults.length === 0 && (
+        <div className="absolute top-full left-0 right-0 mt-1 bg-surface-container-high border border-outline-variant rounded-lg shadow-lg z-50 p-3">
+          <div className="text-on-surface-variant text-center text-body-md">No leads found</div>
+        </div>
+      )}
+      {isSearching && (
+        <div className="absolute top-full left-0 right-0 mt-1 bg-surface-container-high border border-outline-variant rounded-lg shadow-lg z-50 p-3">
+          <div className="text-on-surface-variant text-center text-body-md">Searching...</div>
+        </div>
+      )}
+    </div>
+  );
+
+  const ownerSelect = (
+    <select
+      value={selectedOwner}
+      onChange={handleOwnerChange}
+      className="bg-surface-container-high border border-outline-variant rounded-lg px-3 py-1.5 text-body-md text-on-surface focus:border-primary focus:ring-1 focus:ring-primary outline-none"
+    >
+      <option value="">Select Lead Owner</option>
+      <option value="Pretty">Pretty</option>
+      <option value="Kainat">Kainat</option>
+    </select>
+  );
+
+  const sidebarExtra = (
+    <div>
+      <div className="text-label-sm text-on-surface-variant uppercase tracking-wider mb-2 px-4">
+        Lead Categories
+      </div>
+      <ul className="space-y-1">
+        {leadCategories.map((category) => {
+          const active = selectedStatus === category.name;
+          const count = getCategoryCount(category.name);
+          return (
+            <li key={category.name}>
+              <button
+                onClick={() => handleStatusSelect(category.name)}
+                className={`w-full flex items-center gap-3 rounded-lg px-4 py-2 transition-all duration-200 ${
+                  active
+                    ? 'bg-secondary-container text-on-secondary-container border-l-4 border-secondary shadow-sm'
+                    : 'text-on-surface-variant hover:bg-surface-container-highest'
+                }`}
+              >
+                <span className="material-symbols-outlined">{category.icon}</span>
+                <span className="text-label-md">{category.name}</span>
+                <span
+                  className={`ml-auto px-2 py-0.5 rounded-full text-label-sm ${
+                    active ? 'bg-secondary text-on-secondary' : 'bg-surface-variant'
+                  }`}
+                >
+                  {count}
+                </span>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+
+    </div>
+  );
 
   return (
-    <div className="min-h-screen bg-gray-900 py-8 px-1 sm:px-2 lg:px-4 relative">
-      <div className="max-w-7xl mx-auto relative">
-        <div className="flex items-center justify-between mb-8">
-          {/* Add New Lead Button - Moved to left side */}
-          <div className="flex-shrink-0">
-            <button
-              onClick={() => router.push('/data-entry')}
-              className="inline-flex items-center px-6 py-3 bg-gradient-to-br from-gray-800 to-gray-900 border border-gray-700 rounded-lg shadow-lg hover:shadow-blue-500/20 transition-all duration-300 hover:scale-105"
-            >
-              <svg className="w-5 h-5 mr-2 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-              </svg>
-              <span className="font-medium text-blue-400">Add New Lead</span>
-            </button>
-          </div>
+    <AppShell title="Lead Management System" search={search} ownerSelect={ownerSelect} sidebarExtra={sidebarExtra}>
+      {showTooltip && (
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 bg-surface-container-highest text-on-surface px-4 py-2 rounded-lg shadow-lg z-50 border border-outline-variant">
+          {tooltipMessage}
+        </div>
+      )}
 
-          {/* Center Title */}
-          <div className="flex-1 text-center">
-            <h1 className="text-3xl font-bold text-white">Lead Management System</h1>
+      <div className="flex flex-col gap-6">
+        {loading ? (
+          <div className="text-center text-on-surface-variant py-16">Loading leads...</div>
+        ) : !selectedOwner ? (
+          <div className="bg-surface-container rounded-xl border border-outline-variant p-12 text-center">
+            <h2 className="text-headline-md font-bold text-on-surface mb-2">Select a lead owner</h2>
+            <p className="text-body-md text-on-surface-variant">
+              Choose a lead owner from the top right to start working through their leads.
+            </p>
           </div>
+        ) : filteredLeads.length === 0 ? (
+          <div className="bg-surface-container rounded-xl border border-outline-variant p-12 text-center">
+            <h2 className="text-headline-md font-bold text-on-surface mb-2">No leads found</h2>
+            <p className="text-body-md text-on-surface-variant">
+              {selectedStatus === 'New Leads'
+                ? 'No new leads available.'
+                : selectedStatus
+                ? `No leads with status "${selectedStatus}" found.`
+                : 'Pick a lead category from the sidebar to get started.'}
+            </p>
+          </div>
+        ) : (
+          <>
+            {/* Lead Info Header */}
+            <section className="grid grid-cols-1 md:grid-cols-5 gap-4">
+              <div className="col-span-1 md:col-span-5 bg-surface-container rounded-xl border border-outline-variant p-1">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-surface-container-high text-on-surface-variant text-label-md border-b border-outline-variant">
+                      <th className="p-4 font-semibold">Name</th>
+                      <th className="p-4 font-semibold">Phone</th>
+                      <th className="p-4 font-semibold">Email</th>
+                      <th className="p-4 font-semibold">Lead Received</th>
+                      <th className="p-4 font-semibold text-center">Attempts</th>
+                      <th className="p-4 font-semibold text-right">
+                        {isEditing ? (
+                          <div className="flex justify-end gap-2">
+                            <button
+                              onClick={handleSaveEdit}
+                              disabled={updatingLead}
+                              className="px-3 py-1 rounded-md text-label-md bg-secondary text-on-secondary hover:opacity-90 disabled:opacity-50"
+                            >
+                              {updatingLead ? 'Saving...' : 'Save'}
+                            </button>
+                            <button
+                              onClick={handleCancelEdit}
+                              className="px-3 py-1 rounded-md text-label-md bg-surface-container-highest text-on-surface-variant hover:bg-surface-bright"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={handleEditClick}
+                            className="flex items-center gap-1 px-3 py-1 rounded-md text-label-md bg-primary-container text-on-primary-container hover:bg-primary hover:text-on-primary ml-auto"
+                          >
+                            <span className="material-symbols-outlined text-[16px]">edit</span>
+                            Edit
+                          </button>
+                        )}
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr className="text-body-md hover:bg-surface-container-highest transition-colors">
+                      <td className="p-4">
+                        {isEditing ? (
+                          <input
+                            type="text"
+                            value={editData.name}
+                            onChange={(e) => setEditData({ ...editData, name: e.target.value })}
+                            className="w-full bg-surface-container-high border border-outline-variant rounded-md px-2 py-1 text-on-surface outline-none focus:border-primary"
+                          />
+                        ) : (
+                          <span className="flex items-center gap-2">
+                            <span className="w-2 h-2 rounded-full bg-secondary" />
+                            {currentLead?.[3] || ''}
+                          </span>
+                        )}
+                      </td>
+                      <td className="p-4">
+                        {isEditing ? (
+                          <input
+                            type="text"
+                            value={editData.phone}
+                            onChange={(e) => setEditData({ ...editData, phone: e.target.value })}
+                            className="w-full bg-surface-container-high border border-outline-variant rounded-md px-2 py-1 text-on-surface outline-none focus:border-primary"
+                          />
+                        ) : (
+                          currentLead?.[5] || ''
+                        )}
+                      </td>
+                      <td className="p-4 text-on-surface-variant">
+                        {isEditing ? (
+                          <input
+                            type="email"
+                            value={editData.email}
+                            onChange={(e) => setEditData({ ...editData, email: e.target.value })}
+                            className="w-full bg-surface-container-high border border-outline-variant rounded-md px-2 py-1 text-on-surface outline-none focus:border-primary"
+                          />
+                        ) : (
+                          currentLead?.[4] || 'Not provided'
+                        )}
+                      </td>
+                      <td className="p-4">{currentLead?.[1] || ''} {currentLead?.[2] || ''}</td>
+                      <td className="p-4 text-center font-bold text-primary">{currentLead?.[11] || 0}</td>
+                      <td className="p-4"></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
 
-          {/* Search Bar - Right side */}
-          <div className="flex-shrink-0 w-80">
-            <div className="relative">
-              <input
-                type="text"
-                placeholder="Search by phone number..."
-                value={searchQuery}
-                onChange={(e) => handleSearch(e.target.value)}
-                className="w-full bg-gray-800 text-white border border-gray-700 rounded-lg px-4 py-2 pl-10 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-              
-              {/* Search Results Dropdown */}
-              {searchResults.length > 0 && searchQuery && (
-                <div className="absolute top-full left-0 right-0 mt-1 bg-gray-800 border border-gray-700 rounded-lg shadow-lg z-50 max-h-60 overflow-y-auto">
-                  {searchResults.map((lead, index) => (
+            {/* Update Status + Notes/Time Slot */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Update Status */}
+              <div className="bg-surface-container rounded-xl border border-outline-variant p-6 flex flex-col gap-4">
+                <div className="flex justify-between items-center mb-2">
+                  <h3 className="text-headline-sm font-semibold">Update Status</h3>
+                  <div className="flex items-center gap-1">
                     <button
-                      key={index}
-                      onClick={() => navigateToLead(lead)}
-                      className="w-full p-3 text-left hover:bg-gray-700 border-b border-gray-700 last:border-b-0 transition-colors"
+                      onClick={handlePrevious}
+                      className="p-1 rounded-full hover:bg-surface-container-highest transition-colors duration-150"
+                      aria-label="Previous lead"
                     >
-                      <div className="text-white text-medium">{lead[5] || 'No Phone'}</div>
-                      <div className="text-blue-400 font-xs">{lead[3] || 'No Name'}</div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-gray-400 text-xs">{lead[6] || 'New Lead'}</span>
-                        <span className="text-green-400 text-xs font-medium">{lead[lead.length - 1]}</span>
-                      </div>
+                      <span className="material-symbols-outlined text-on-surface-variant text-[18px] block">chevron_left</span>
+                    </button>
+                    <span className="text-label-sm text-on-surface-variant whitespace-nowrap px-1">
+                      Lead {currentIndex + 1} of {filteredLeads.length}
+                    </span>
+                    <button
+                      onClick={handleNext}
+                      className="p-1 rounded-full hover:bg-surface-container-highest transition-colors duration-150"
+                      aria-label="Next lead"
+                    >
+                      <span className="material-symbols-outlined text-on-surface-variant text-[18px] block">chevron_right</span>
+                    </button>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {statusActions.map((action) => (
+                    <button
+                      key={action.status}
+                      onClick={() => handleStatusChange(action.status)}
+                      disabled={updatingStatus === action.status}
+                      className={`py-2 px-3 rounded-lg text-label-md transition-colors text-center shadow-sm ${action.className} ${
+                        updatingStatus === action.status ? 'opacity-60 cursor-wait' : ''
+                      }`}
+                    >
+                      {updatingStatus === action.status ? 'Updating...' : action.label}
                     </button>
                   ))}
                 </div>
-              )}
-              
-              {/* No Results */}
-              {searchQuery && !isSearching && searchResults.length === 0 && (
-                <div className="absolute top-full left-0 right-0 mt-1 bg-gray-800 border border-gray-700 rounded-lg shadow-lg z-50 p-3">
-                  <div className="text-gray-400 text-center">No leads found</div>
+                <div className="flex items-center gap-2 text-on-surface-variant border-t border-outline-variant pt-3 mt-auto">
+                  <span className="material-symbols-outlined text-[18px]">history_toggle_off</span>
+                  <span className="text-label-md">{currentTimeSlot}</span>
                 </div>
-              )}
-              
-              {/* Loading */}
-              {isSearching && (
-                <div className="absolute top-full left-0 right-0 mt-1 bg-gray-800 border border-gray-700 rounded-lg shadow-lg z-50 p-3">
-                  <div className="text-gray-400 text-center flex items-center justify-center">
-                    <svg className="animate-spin w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    Searching...
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
+              </div>
 
-        {/* Dropdown and Time Slot - Moved below the title row */}
-        <div className="text-center mb-4">
-          <div className="flex items-center justify-between">
-            {/* Left side: Time slot */}
-            <div className="flex items-center">
-              {currentTimeSlot && (
-                <div className="inline-block bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-600 text-white px-4 py-2 rounded-lg font-medium shadow-md border border-blue-400/30">
-                  <span className="flex items-center space-x-2">
-                    <div className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></div>
-                    <span className="text-sm tracking-wide">{currentTimeSlot}</span>
-                    <div className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></div>
+              {/* Notes + Time Slot */}
+              <div className="flex flex-col gap-6 h-full">
+                <div className="bg-surface-container rounded-xl border border-outline-variant p-6 flex flex-col gap-4">
+                  <label className="text-headline-sm font-semibold flex items-center gap-2">
+                    <span className="material-symbols-outlined text-primary">edit_note</span>
+                    Notes
+                  </label>
+                  <textarea
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    className="w-full bg-surface-container-high border border-outline-variant rounded-lg p-3 text-body-md text-on-surface focus:border-primary focus:ring-1 focus:ring-primary transition-all resize-none outline-none"
+                    placeholder="Enter any notes about this call or lead..."
+                    rows="4"
+                  />
+                </div>
+
+                <div className="bg-surface-container rounded-xl border border-outline-variant p-6 flex flex-col gap-3">
+                  <h3 className="text-headline-sm font-semibold flex items-center gap-2">
+                    <span className="material-symbols-outlined text-primary">history</span>
+                    Call History
+                  </h3>
+                  <div className="grid grid-cols-2 gap-2">
+                    {renderSlotHistory(7, 'Slot 1', '9:00 AM - 11:00 AM')}
+                    {renderSlotHistory(8, 'Slot 2', '11:00 AM - 1:00 PM')}
+                    {renderSlotHistory(9, 'Slot 3', '1:00 PM - 4:00 PM')}
+                    {renderSlotHistory(10, 'Slot 4', '4:00 PM - 6:00 PM')}
+                  </div>
+                  {currentLead?.[12] && (
+                    <div className="bg-surface-container-high rounded-lg p-3">
+                      <h4 className="text-label-sm text-on-surface-variant uppercase tracking-wider mb-1">Saved Notes</h4>
+                      <p className="text-body-md text-on-surface whitespace-pre-wrap">{currentLead[12]}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Sales Pitch */}
+            <div className="flex flex-col gap-4">
+              <div className="flex justify-between items-center px-2">
+                <h3 className="text-headline-md font-bold">Sales Pitch Script</h3>
+              </div>
+              <div className="bg-inverse-surface text-inverse-on-surface rounded-xl p-8 shadow-md border border-outline-variant h-full leading-relaxed text-body-lg">
+                <p className="mb-4">Assalam o Alaikum!</p>
+                <p className="mb-4">
+                  Aap ne WhatsApp par humse contact kiya tha regarding our{' '}
+                  <strong className="font-bold text-on-primary-container">Data Science Bootcamp</strong>. Kya aap is
+                  bootcamp ke baare mein aur janna chahenge?
+                </p>
+                <p className="mb-2">Toh let me explain — yeh <strong className="font-bold">4-month ka complete bootcamp</strong> hai:</p>
+                <ul className="space-y-2 mb-6 ml-2">
+                  <li className="flex items-start gap-2">
+                    <span className="text-primary mt-1">◆</span>
+                    <span>1st Month – Python programming: from basics to data handling</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-primary mt-1">◆</span>
+                    <span>2nd Month – Machine Learning: algorithms, model building</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-primary mt-1">◆</span>
+                    <span>3rd Month – Deep Learning: neural networks, CNNs</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-primary mt-1">◆</span>
+                    <span>
+                      4th Month – Generative AI: jisme aap apna <strong className="font-bold text-on-primary-container">khud ka chatbot</strong> build
+                      kar saktay hain using advanced GenAI tools
+                    </span>
+                  </li>
+                </ul>
+                <p className="mb-4 flex items-start gap-2">
+                  <span className="text-xl">✨</span>
+                  <span>
+                    <strong className="font-bold">Assignments har week diye jate hain</strong> aur unka{' '}
+                    <strong className="font-bold">feedback within 1 hour</strong> mil jata hai — taake aap fast pace pe
+                    improve kar sakein.
                   </span>
-                </div>
-              )}
-            </div>
-
-            {/* Center: Owner selection */}
-            <div className="absolute left-1/2 transform -translate-x-1/2">
-              <select
-                value={selectedOwner}
-                onChange={handleOwnerChange}
-                className="w-48 bg-gray-800 text-white border border-gray-700 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">Select Lead Owner</option>
-                <option value="Pretty">Pretty</option>
-                <option value="Kainat">Kainat</option>
-              </select>
-            </div>
-
-            {/* Right side: Edit button */}
-            {selectedOwner && currentLead && !isEditing && (
-              <button
-                onClick={handleEditClick}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-all duration-200 flex items-center space-x-2"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                </svg>
-                <span>Edit</span>
-              </button>
-            )}
-            {selectedOwner && currentLead && isEditing && (
-              <div className="flex space-x-2">
-                <button
-                  onClick={handleSaveEdit}
-                  disabled={updatingLead}
-                  className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-all duration-200 flex items-center space-x-2 disabled:opacity-50"
-                >
-                  {updatingLead ? (
-                    <>
-                      <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                      <span>Saving...</span>
-                    </>
-                  ) : (
-                    <>
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
-                      <span>Save</span>
-                    </>
-                  )}
-                </button>
-                <button
-                  onClick={handleCancelEdit}
-                  className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg font-medium transition-all duration-200 flex items-center space-x-2"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                  <span>Cancel</span>
-                </button>
+                </p>
+                <p className="mb-4">
+                  Mujhe aapke background ke baare mein thoda batayein, taake main aapko aur ache se guide kar sakun.
+                  Aapka current field kya hai?
+                </p>
+                <p className="mb-4 flex items-start gap-2">
+                  <span className="text-secondary mt-1">✔</span>
+                  <span>
+                    Agar aap <strong className="font-bold text-on-secondary-container">80% ya us se zyada score</strong>{' '}
+                    karte hain in assignments mein, toh aapko <strong className="font-bold">remote internship</strong>{' '}
+                    milti hai — jisse aapka <strong className="font-bold">professional experience</strong> build hota
+                    hai.
+                  </span>
+                </p>
+                <p className="mb-6 flex items-start gap-2">
+                  <span className="text-xl">📝</span>
+                  <span>
+                    Plus, hum aapki <strong className="font-bold">LinkedIn aur Resume optimization</strong> mein bhi
+                    help karte hain taake job market ke liye aap ready ho jayein.
+                  </span>
+                </p>
+                <p className="mb-4">Kya aapko yeh information helpful lagi? Ya koi aur sawal hain aapke mind mein?</p>
+                <p className="mb-4">
+                  If you&apos;re interested, just let me know — I&apos;ll share the{' '}
+                  <strong className="font-bold">registration link and next steps</strong> with you.
+                </p>
+                <p className="flex items-center gap-2">
+                  <strong className="font-bold text-error-container">Limited seats hain</strong>, so don&apos;t miss this
+                  opportunity! 🚀
+                </p>
               </div>
-            )}
-          </div>
-          </div>
-
-        {loading ? (
-          <div className="text-center text-gray-400">Loading leads...</div>
-        ) : selectedOwner && (
-          <div className="flex gap-6">
-            {/* Sidebar */}
-            <div className="w-64 flex-shrink-0">
-              <div className="bg-gray-800 rounded-lg p-4 shadow-lg">
-                <h2 className="text-xl font-bold text-white mb-4 text-center">Lead Categories</h2>
-                <div className="space-y-2">
-                  {leadStatusOptions.map((option) => {
-                    // Calculate count for each status
-                    let count = 0;
-                    if (option.name === 'New Leads') {
-                      count = leads.filter(lead => !lead[6] || lead[6].trim() === '').length;
-                    } else {
-                      count = leads.filter(lead => lead[6] === option.name).length;
-                    }
-                    
-                    return (
-                    <button
-                      key={option.name}
-                      onClick={() => handleStatusSelect(option.name)}
-                        className={`w-full p-3 rounded-lg text-left transition-all duration-200 text-white font-medium flex items-center justify-between ${
-                        selectedStatus === option.name 
-                          ? `${option.color} shadow-lg` 
-                          : 'bg-gray-700 hover:bg-gray-600'
-                      }`}
-                    >
-                        <div className="flex items-center space-x-3">
-                      <span className="text-lg">{option.icon}</span>
-                      <span>{option.name}</span>
-                        </div>
-                        <span className="px-2 py-1 rounded-full text-sm font-bold text-blue-300">
-                          {count}
-                        </span>
-                    </button>
-                    );
-                  })}
-                </div>
-                
-                {/* Lead count display */}
-                <div className="mt-4 p-3 bg-gray-700 rounded-lg">
-                  <p className="text-gray-300 text-sm text-center">
-                    <span className="font-bold text-white">Total Leads</span> : <span className="font-bold text-white">{leads.length}</span>
-                  </p>
-                </div>
-              </div>
-
-              {/* Time Slot History Section - Moved to sidebar */}
-              {currentLead && (
-                <div className="mt-4 bg-gray-800 rounded-lg p-4 shadow-lg">
-                  <h2 className="text-lg font-bold text-white mb-3 text-center">Call History</h2>
-                  <div className="space-y-3">
-                    {/* Slot 1 - Column G (index 7) */}
-                    <div className="bg-gray-700 rounded-lg p-3">
-                      <h3 className="text-sm font-semibold text-white mb-1">Slot 1 (9:00 AM - 11:00 AM)</h3>
-                      <div className="min-h-[40px] flex flex-col items-center justify-center w-full">
-                        {currentLead?.[7] ? (() => {
-                          const value = currentLead[7];
-                          const splitIndex = value.indexOf('(');
-                          const status = splitIndex !== -1 ? value.slice(0, splitIndex).trim() : value;
-                          const timestamp = splitIndex !== -1 ? value.slice(splitIndex) : '';
-                          return (
-                            <>
-                              <span className="font-bold text-purple-300 text-sm">{status}</span>
-                              {timestamp && <span className="text-gray-300 text-xs mt-1">{timestamp}</span>}
-                            </>
-                          );
-                        })() : (
-                          <span className="text-gray-500 text-xs">No call made</span>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Slot 2 - Column H (index 8) */}
-                    <div className="bg-gray-700 rounded-lg p-3">
-                      <h3 className="text-sm font-semibold text-white mb-1">Slot 2 (11:00 AM - 1:00 PM)</h3>
-                      <div className="min-h-[40px] flex flex-col items-center justify-center w-full">
-                        {currentLead?.[8] ? (() => {
-                          const value = currentLead[8];
-                          const splitIndex = value.indexOf('(');
-                          const status = splitIndex !== -1 ? value.slice(0, splitIndex).trim() : value;
-                          const timestamp = splitIndex !== -1 ? value.slice(splitIndex) : '';
-                          return (
-                            <>
-                              <span className="font-bold text-purple-400 text-sm">{status}</span>
-                              {timestamp && <span className="text-gray-300 text-xs mt-1">{timestamp}</span>}
-                            </>
-                          );
-                        })() : (
-                          <span className="text-gray-500 text-xs">No call made</span>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Slot 3 - Column I (index 9) */}
-                    <div className="bg-gray-700 rounded-lg p-3">
-                      <h3 className="text-sm font-semibold text-white mb-1">Slot 3 (1:00 PM - 4:00 PM)</h3>
-                      <div className="min-h-[40px] flex flex-col items-center justify-center w-full">
-                        {currentLead?.[9] ? (() => {
-                          const value = currentLead[9];
-                          const splitIndex = value.indexOf('(');
-                          const status = splitIndex !== -1 ? value.slice(0, splitIndex).trim() : value;
-                          const timestamp = splitIndex !== -1 ? value.slice(splitIndex) : '';
-                          return (
-                            <>
-                              <span className="font-bold text-purple-400 text-sm">{status}</span>
-                              {timestamp && <span className="text-gray-300 text-xs mt-1">{timestamp}</span>}
-                            </>
-                          );
-                        })() : (
-                          <span className="text-gray-500 text-xs">No call made</span>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Slot 4 - Column J (index 10) */}
-                    <div className="bg-gray-700 rounded-lg p-3">
-                      <h3 className="text-sm font-semibold text-white mb-1">Slot 4 (4:00 PM - 6:00 PM)</h3>
-                      <div className="min-h-[40px] flex flex-col items-center justify-center w-full">
-                        {currentLead?.[10] ? (() => {
-                          const value = currentLead[10];
-                          const splitIndex = value.indexOf('(');
-                          const status = splitIndex !== -1 ? value.slice(0, splitIndex).trim() : value;
-                          const timestamp = splitIndex !== -1 ? value.slice(splitIndex) : '';
-                          return (
-                            <>
-                              <span className="font-bold text-purple-400 text-sm">{status}</span>
-                              {timestamp && <span className="text-gray-300 text-xs mt-1">{timestamp}</span>}
-                            </>
-                          );
-                        })() : (
-                          <span className="text-gray-500 text-xs">No call made</span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Notes Display - Outside Call History Box */}
-              {currentLead?.[12] && (
-                <div className="mt-4 bg-gradient-to-br from-gray-800 to-gray-900 rounded-lg p-4 border border-gray-600 shadow-lg">
-                  <div className="flex items-center gap-2 mb-3">
-                    <svg className="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                    </svg>
-                    <h3 className="text-sm font-bold text-green-400">Notes</h3>
-                  </div>
-                  <div className="bg-gray-700 rounded-lg p-3 border border-gray-600">
-                    <p className="text-gray-200 text-sm leading-relaxed whitespace-pre-wrap">
-                      {currentLead[12]}
-                    </p>
-                  </div>
-                </div>
-              )}
             </div>
 
-            {/* Main content */}
-            <div className="flex-1">
-              {filteredLeads.length === 0 ? (
-                <div className="bg-gray-800 rounded-lg p-8 shadow-lg text-center">
-                  <h2 className="text-2xl font-bold text-white mb-4">No leads found</h2>
-                  <p className="text-gray-400">
-                    {selectedStatus === 'New Leads' 
-                      ? 'No new leads available.' 
-                      : `No leads with status "${selectedStatus}" found.`
-                    }
-                  </p>
-                </div>
-              ) : (
-                <>
-                  {/* Status Buttons - Now in main content area */}
-                  {selectedOwner && currentLead && (
-                    <div className="mb-4 flex flex-wrap gap-2 justify-center relative">
-                      {showTooltip && (
-                        <div className="absolute -top-12 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white px-4 py-2 rounded-lg shadow-lg z-50">
-                          {tooltipMessage}
-                        </div>
-                      )}
-                      <button
-                        onClick={() => handleStatusChange('Call Received')}
-                        className={`px-3 py-1.5 rounded-md font-medium transition-all duration-200 text-white flex items-center justify-center min-w-[100px] text-sm bg-green-600 hover:bg-green-700 ${updatingStatus === 'Call Received' ? 'opacity-75 cursor-wait' : ''}`}
-                        disabled={updatingStatus === 'Call Received'}
-                      >
-                        {updatingStatus === 'Call Received' ? (
-                          <div className="flex items-center">
-                            <svg className="animate-spin -ml-1 mr-2 h-3 w-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                            </svg>
-                            Updating...
-                          </div>
-                        ) : (
-                          'Call Received'
-                        )}
-                      </button>
-                      <button
-                        onClick={() => handleStatusChange('Not Received')}
-                        className={`px-3 py-1.5 rounded-md font-medium transition-all duration-200 text-white flex items-center justify-center min-w-[100px] text-sm bg-red-600 hover:bg-red-700 ${updatingStatus === 'Not Received' ? 'opacity-75 cursor-wait' : ''}`}
-                        disabled={updatingStatus === 'Not Received'}
-                      >
-                        {updatingStatus === 'Not Received' ? (
-                          <div className="flex items-center">
-                            <svg className="animate-spin -ml-1 mr-2 h-3 w-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                            </svg>
-                            Updating...
-                          </div>
-                        ) : (
-                          'Not Received'
-                        )}
-                      </button>
-                      <button
-                        onClick={() => handleStatusChange('Call Later')}
-                        className={`px-3 py-1.5 rounded-md font-medium transition-all duration-200 text-white flex items-center justify-center min-w-[100px] text-sm bg-yellow-600 hover:bg-yellow-700 ${updatingStatus === 'Call Later' ? 'opacity-75 cursor-wait' : ''}`}
-                        disabled={updatingStatus === 'Call Later'}
-                      >
-                        {updatingStatus === 'Call Later' ? (
-                          <div className="flex items-center">
-                            <svg className="animate-spin -ml-1 mr-2 h-3 w-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                            </svg>
-                            Updating...
-                          </div>
-                        ) : (
-                          'Please Call Later'
-                        )}
-                      </button>
-                      <button
-                        onClick={() => handleStatusChange('Client Lost')}
-                        className={`px-3 py-1.5 rounded-md font-medium transition-all duration-200 text-white flex items-center justify-center min-w-[100px] text-sm bg-gray-600 hover:bg-gray-700 ${updatingStatus === 'Client Lost' ? 'opacity-75 cursor-wait' : ''}`}
-                        disabled={updatingStatus === 'Client Lost'}
-                      >
-                        {updatingStatus === 'Client Lost' ? (
-                          <div className="flex items-center">
-                            <svg className="animate-spin -ml-1 mr-2 h-3 w-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                            </svg>
-                            Updating...
-                          </div>
-                        ) : (
-                          'Client Lost'
-                        )}
-                      </button>
-                      <button
-                        onClick={() => handleStatusChange('Confirmation')}
-                        className={`px-3 py-1.5 rounded-md font-medium transition-all duration-200 text-white flex items-center justify-center min-w-[100px] text-sm bg-blue-600 hover:bg-blue-700 ${updatingStatus === 'Confirmation' ? 'opacity-75 cursor-wait' : ''}`}
-                        disabled={updatingStatus === 'Confirmation'}
-                      >
-                        {updatingStatus === 'Confirmation' ? (
-                          <div className="flex items-center">
-                            <svg className="animate-spin -ml-1 mr-2 h-3 w-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                            </svg>
-                            Updating...
-                          </div>
-                        ) : (
-                          'Confirmation'
-                        )}
-                      </button>
-                      <button
-                        onClick={() => handleStatusChange('Paid')}
-                        className={`px-3 py-1.5 rounded-md font-medium transition-all duration-200 text-white flex items-center justify-center min-w-[100px] text-sm bg-purple-600 hover:bg-purple-700 ${updatingStatus === 'Paid' ? 'opacity-75 cursor-wait' : ''}`}
-                        disabled={updatingStatus === 'Paid'}
-                      >
-                        {updatingStatus === 'Paid' ? (
-                          <div className="flex items-center">
-                            <svg className="animate-spin -ml-1 mr-2 h-3 w-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                            </svg>
-                            Updating...
-                          </div>
-                        ) : (
-                          'Paid'
-                        )}
-                      </button>
-                      <button
-                        onClick={() => handleStatusChange('Demo')}
-                        className={`px-3 py-1.5 rounded-md font-medium transition-all duration-200 text-white flex items-center justify-center min-w-[100px] text-sm bg-indigo-600 hover:bg-indigo-700 ${updatingStatus === 'Demo' ? 'opacity-75 cursor-wait' : ''}`}
-                        disabled={updatingStatus === 'Demo'}
-                      >
-                        {updatingStatus === 'Demo' ? (
-                          <div className="flex items-center">
-                            <svg className="animate-spin -ml-1 mr-2 h-3 w-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                            </svg>
-                            Updating...
-                          </div>
-                        ) : (
-                          'Demo'
-                        )}
-                      </button>
-                      <button
-                        onClick={() => handleStatusChange('Form Filled')}
-                        className={`px-3 py-1.5 rounded-md font-medium transition-all duration-200 text-white flex items-center justify-center min-w-[100px] text-sm bg-teal-600 hover:bg-teal-700 ${updatingStatus === 'Form Filled' ? 'opacity-75 cursor-wait' : ''}`}
-                        disabled={updatingStatus === 'Form Filled'}
-                      >
-                        {updatingStatus === 'Form Filled' ? (
-                          <div className="flex items-center">
-                            <svg className="animate-spin -ml-1 mr-2 h-3 w-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                            </svg>
-                            Updating...
-                          </div>
-                        ) : (
-                          'Form Filled'
-                        )}
-                      </button>
-                    </div>
-                  )}
-
-                  {/* Lead Details Table - Now below status buttons */}
-                  <div className="rounded-lg overflow-hidden">
-                    <div className="p-3">
-                      <div className="mb-4">
-                        <table className="w-full border-collapse">
-                          <thead>
-                            <tr className="bg-gray-700">
-                              <th className="border border-gray-600 p-3 text-center text-white font-medium text-xl">Name</th>
-                              <th className="border border-gray-600 p-3 text-center text-white font-medium text-xl">Phone</th>
-                              <th className="border border-gray-600 p-3 text-center text-white font-medium text-xl">Email</th>
-                              <th className="border border-gray-600 p-3 text-center text-white font-medium text-xl">Lead Received</th>
-                              <th className="border border-gray-600 p-3 text-center text-white font-medium text-xl">Attempts</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            <tr>
-                              <td className="border border-gray-600 p-3 text-center align-middle">
-                                {isEditing ? (
-                                  <input
-                                    type="text"
-                                    value={editData.name}
-                                    onChange={(e) => setEditData({...editData, name: e.target.value})}
-                                    className="w-full bg-gray-700 text-white text-xl text-center border-none outline-none rounded px-2 py-1"
-                                    placeholder="Enter name"
-                                  />
-                                ) : (
-                                  <span className="text-white whitespace-normal break-words text-xl">{currentLead?.[3] || ''}</span>
-                                )}
-                              </td>
-                              <td className="border border-gray-600 p-3 text-center align-middle">
-                                {isEditing ? (
-                                  <input
-                                    type="text"
-                                    value={editData.phone}
-                                    onChange={(e) => setEditData({...editData, phone: e.target.value})}
-                                    className="w-full bg-gray-700 text-white text-xl text-center border-none outline-none rounded px-2 py-1"
-                                    placeholder="Enter phone"
-                                  />
-                                ) : (
-                                  <span className="text-white text-xl">{currentLead?.[5] || ''}</span>
-                                )}
-                              </td>
-                              <td className="border border-gray-600 p-3 text-center align-middle">
-                                {isEditing ? (
-                                  <input
-                                    type="email"
-                                    value={editData.email}
-                                    onChange={(e) => setEditData({...editData, email: e.target.value})}
-                                    className="w-full bg-gray-700 text-white text-xl text-center border-none outline-none rounded px-2 py-1"
-                                    placeholder="Enter email"
-                                  />
-                                ) : (
-                                  <span className="text-white whitespace-normal break-words text-xl">{currentLead?.[4] || 'Not provided'}</span>
-                                )}
-                              </td>
-                              <td className="border border-gray-600 p-3 text-center align-middle">
-                                <span className="text-white text-xl">{currentLead?.[1] || ''} {currentLead?.[2] || ''}</span>
-                              </td>
-                              <td className="border border-gray-600 p-3 text-center align-middle">
-                                <span className="text-white text-xl font-bold">
-                                  {currentLead?.[11] || 0}
-                                </span>
-                              </td>
-                            </tr>
-                          </tbody>
-                        </table>
-                      </div>
-
-                      <div className="mt-4">
-                        <div className="text-center mb-3">
-                          <h2 className="text-2xl font-bold text-white">Sales Pitch</h2>
-                        </div>
-                        <div className="bg-white rounded-lg p-4">
-                          <p className="text-black text-xl leading-relaxed">
-                            Assalam o Alaikum!<br />
-
-                            Aap ne WhatsApp par humse contact kiya tha regarding our <strong>Data Science Bootcamp</strong>. Kya aap is bootcamp ke baare mein aur janna chahenge?<br />
-
-                            Toh let me explain — yeh <strong>4-month ka complete bootcamp</strong> hai:<br />
-
-                            🔹 1st Month – Python programming: from basics to data handling<br />
-                            🔹 2nd Month – Machine Learning: algorithms, model building<br />
-                            🔹 3rd Month – Deep Learning: neural networks, CNNs<br />
-                            🔹 4th Month – Generative AI: jisme aap apna <strong>khud ka chatbot</strong> build kar saktay hain using advanced GenAI tools<br />
-
-                            ✨ <strong>Assignments har week diye jate hain</strong> aur unka <strong>feedback within 1 hour</strong> mil jata hai — taake aap fast pace pe improve kar sakein.<br />
-
-                            Mujhe aapke background ke baare mein thoda batayein, taake main aapko aur ache se guide kar sakun. Aapka current field kya hai?<br />
-
-                            ✔️ Agar aap <strong>80% ya us se zyada score</strong> karte hain in assignments mein, toh aapko <strong>remote internship</strong> milti hai — jisse aapka <strong>professional experience</strong> build hota hai.<br />
-
-                            📝 Plus, hum aapki <strong>LinkedIn aur Resume optimization</strong> mein bhi help karte hain taake job market ke liye aap ready ho jayein.<br />
-
-                            Kya aapko yeh information helpful lagi? Ya koi aur sawal hain aapke mind mein?<br />
-
-                            If you&apos;re interested, just let me know — I&apos;ll share the <strong>registration link and next steps</strong> with you.<br />
-
-                            <strong>Limited seats hain</strong>, so don&apos;t miss this opportunity! 🚀
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* Notes Input Field */}
-                      <div className="mt-4 mb-3">
-                        <div className="max-w-2xl mx-auto">
-                          <textarea
-                            value={notes}
-                            onChange={(e) => setNotes(e.target.value)}
-                            placeholder="Enter any notes about this call or lead..."
-                            className="w-full p-3 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-                            rows="3"
-                          />
-                        </div>
-                      </div>
-
-                      <div className="flex justify-center items-center mt-4">
-                        <span className="text-gray-400">
-                          {filteredLeads.length === 0 ? 'You are done with all leads!' : `Lead ${currentIndex + 1} of ${filteredLeads.length}`}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </>
-              )}
-
-              {!loading && filteredLeads.length > 0 && (
-                <>
-                  <button
-                    onClick={handlePrevious}
-                    className="fixed left-4 top-1/2 -translate-y-1/2 p-4 rounded-full bg-gray-800 hover:bg-gray-700 transition-colors duration-150 shadow-lg"
-                  >
-                    <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                    </svg>
-                  </button>
-                  <button
-                    onClick={handleNext}
-                    className="fixed right-4 top-1/2 -translate-y-1/2 p-4 rounded-full bg-gray-800 hover:bg-gray-700 transition-colors duration-150 shadow-lg"
-                  >
-                    <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                    </svg>
-                  </button>
-                </>
-              )}
-            </div>
-          </div>
+          </>
         )}
       </div>
-    </div>
+    </AppShell>
   );
-} 
+}

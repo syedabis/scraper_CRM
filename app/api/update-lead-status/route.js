@@ -42,7 +42,9 @@ const VALID_STATUSES = [
   'Confirmation',
   'Paid',
   'Demo',
-  'Form Filled'
+  'Form Filled',
+  'Group Lead',
+  'Awaiting Response'
 ];
 
 // Cache for sheet IDs
