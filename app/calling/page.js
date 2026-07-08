@@ -37,16 +37,16 @@ export default function Calling() {
   ];
 
   const statusActions = [
-    { status: 'Call Received', label: 'Call Received', className: 'bg-secondary-container text-on-secondary-container hover:bg-secondary hover:text-on-secondary border border-secondary' },
-    { status: 'Not Received', label: 'Not Received', className: 'bg-error-container text-on-error-container hover:bg-error hover:text-on-error border border-transparent' },
-    { status: 'Call Later', label: 'Please Call Later', className: 'bg-tertiary-container text-on-tertiary-container hover:bg-tertiary hover:text-on-tertiary border border-transparent' },
-    { status: 'Client Lost', label: 'Client Lost', className: 'bg-error/15 text-error hover:bg-error hover:text-on-error border border-error/30' },
-    { status: 'Confirmation', label: 'Confirmation', className: 'bg-primary-container text-on-primary-container hover:bg-primary hover:text-on-primary border border-transparent' },
-    { status: 'Paid', label: 'Paid', className: 'bg-secondary/15 text-secondary hover:bg-secondary hover:text-on-secondary border border-secondary/30' },
-    { status: 'Demo', label: 'Demo', className: 'bg-primary-container text-on-primary-container hover:bg-primary hover:text-on-primary border border-transparent' },
-    { status: 'Form Filled', label: 'Form Filled', className: 'bg-primary/15 text-primary hover:bg-primary hover:text-on-primary border border-primary/30' },
-    { status: 'Group Lead', label: 'Group Lead', className: 'bg-tertiary/15 text-tertiary hover:bg-tertiary hover:text-on-tertiary border border-tertiary/30' },
-    { status: 'Awaiting Response', label: 'Awaiting Response', className: 'bg-tertiary-container text-on-tertiary-container hover:bg-tertiary hover:text-on-tertiary border border-transparent' },
+    { status: 'Call Received', label: 'Call Received', className: 'bg-[#568d66] text-white hover:brightness-110 border border-transparent' },
+    { status: 'Not Received', label: 'Not Received', className: 'bg-[#cb0b0a] text-white hover:brightness-110 border border-transparent' },
+    { status: 'Call Later', label: 'Please Call Later', className: 'bg-[#df8080] text-gray-900 hover:brightness-95 border border-transparent' },
+    { status: 'Client Lost', label: 'Client Lost', className: 'bg-[#8e0413] text-white hover:brightness-110 border border-transparent' },
+    { status: 'Confirmation', label: 'Confirmation', className: 'bg-[#2b6a4d] text-white hover:brightness-110 border border-transparent' },
+    { status: 'Paid', label: 'Paid', className: 'bg-[#004733] text-white hover:brightness-125 border border-transparent' },
+    { status: 'Demo', label: 'Demo', className: 'bg-[#a5c1ae] text-gray-900 hover:brightness-95 border border-transparent' },
+    { status: 'Form Filled', label: 'Form Filled', className: 'bg-[#f3f4f6] text-gray-900 hover:brightness-95 border border-transparent' },
+    { status: 'Group Lead', label: 'Group Lead', className: 'bg-[#dcdfe5] text-gray-900 hover:brightness-95 border border-transparent' },
+    { status: 'Awaiting Response', label: 'Awaiting Response', className: 'bg-[#ad080f] text-white hover:brightness-110 border border-transparent' },
   ];
 
   // Function to get current Pakistani time slot
@@ -349,27 +349,16 @@ export default function Calling() {
 
   const renderSlotHistory = (index, slotName, timeRange) => {
     const value = currentLead?.[index];
-    let status = null;
-    let timestamp = '';
-    if (value) {
-      const splitIndex = value.indexOf('(');
-      status = splitIndex !== -1 ? value.slice(0, splitIndex).trim() : value;
-      timestamp = splitIndex !== -1 ? value.slice(splitIndex) : '';
-    }
+    const statusLabel = value ? value.trim() : 'No call made';
     return (
-      <div className="bg-surface-container-high rounded-lg p-3 flex flex-col gap-1" key={slotName}>
-        <div className="flex flex-col">
-          <span className="text-label-sm font-semibold text-on-surface-variant uppercase tracking-wider">{slotName}</span>
-          <span className="text-label-sm text-on-surface-variant/70">{timeRange}</span>
-        </div>
-        {value ? (
-          <div className="flex flex-col gap-0.5">
-            <span className="font-semibold text-primary text-body-md truncate">{status}</span>
-            {timestamp && <span className="text-on-surface-variant text-label-sm truncate">{timestamp}</span>}
-          </div>
-        ) : (
-          <span className="text-on-surface-variant text-label-sm">No call made</span>
-        )}
+      <div className="bg-surface-container-high rounded-lg px-3 py-2 flex items-center" key={slotName}>
+        <span className="text-label-sm truncate">
+          <span className="font-semibold text-on-surface uppercase tracking-wider">{slotName}</span>{' '}
+          <span className="text-on-surface-variant/70">[{timeRange}]</span>{' '}
+          <span className={value ? 'text-primary font-semibold' : 'text-on-surface-variant'}>
+            [{statusLabel.toUpperCase()}]
+          </span>
+        </span>
       </div>
     );
   };
@@ -626,7 +615,7 @@ export default function Calling() {
                     onChange={(e) => setNotes(e.target.value)}
                     className="w-full bg-surface-container-high border border-outline-variant rounded-lg p-3 text-body-md text-on-surface focus:border-primary focus:ring-1 focus:ring-primary transition-all resize-none outline-none"
                     placeholder="Enter any notes about this call or lead..."
-                    rows="4"
+                    rows="2"
                   />
                 </div>
 

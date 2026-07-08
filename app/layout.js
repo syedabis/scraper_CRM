@@ -11,6 +11,9 @@ const geist = Geist({
 export const metadata = {
   title: "Cognos Sales CRM",
   description: "Capture and track your sales leads efficiently with Cognos Sales CRM",
+  icons: {
+    icon: "/favicon.png",
+  },
 };
 
 export default function RootLayout({ children }) {
