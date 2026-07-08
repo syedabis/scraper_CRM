@@ -7,7 +7,7 @@ export default function Calling() {
   const [leads, setLeads] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [selectedOwner, setSelectedOwner] = useState('');
+  const [selectedOwner, setSelectedOwner] = useState('Pretty');
   const [tooltipMessage, setTooltipMessage] = useState('');
   const [showTooltip, setShowTooltip] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState('');
@@ -40,12 +40,12 @@ export default function Calling() {
     { status: 'Call Received', label: 'Call Received', className: 'bg-secondary-container text-on-secondary-container hover:bg-secondary hover:text-on-secondary border border-secondary' },
     { status: 'Not Received', label: 'Not Received', className: 'bg-error-container text-on-error-container hover:bg-error hover:text-on-error border border-transparent' },
     { status: 'Call Later', label: 'Please Call Later', className: 'bg-tertiary-container text-on-tertiary-container hover:bg-tertiary hover:text-on-tertiary border border-transparent' },
-    { status: 'Client Lost', label: 'Client Lost', className: 'bg-surface-container-highest text-on-surface-variant hover:bg-surface-bright border border-transparent' },
+    { status: 'Client Lost', label: 'Client Lost', className: 'bg-error/15 text-error hover:bg-error hover:text-on-error border border-error/30' },
     { status: 'Confirmation', label: 'Confirmation', className: 'bg-primary-container text-on-primary-container hover:bg-primary hover:text-on-primary border border-transparent' },
-    { status: 'Paid', label: 'Paid', className: 'bg-surface-container-highest text-on-surface-variant hover:bg-surface-bright border border-transparent' },
+    { status: 'Paid', label: 'Paid', className: 'bg-secondary/15 text-secondary hover:bg-secondary hover:text-on-secondary border border-secondary/30' },
     { status: 'Demo', label: 'Demo', className: 'bg-primary-container text-on-primary-container hover:bg-primary hover:text-on-primary border border-transparent' },
-    { status: 'Form Filled', label: 'Form Filled', className: 'bg-surface-container-highest text-on-surface-variant hover:bg-surface-bright border border-transparent' },
-    { status: 'Group Lead', label: 'Group Lead', className: 'bg-surface-container-highest text-on-surface-variant hover:bg-surface-bright border border-transparent' },
+    { status: 'Form Filled', label: 'Form Filled', className: 'bg-primary/15 text-primary hover:bg-primary hover:text-on-primary border border-primary/30' },
+    { status: 'Group Lead', label: 'Group Lead', className: 'bg-tertiary/15 text-tertiary hover:bg-tertiary hover:text-on-tertiary border border-tertiary/30' },
     { status: 'Awaiting Response', label: 'Awaiting Response', className: 'bg-tertiary-container text-on-tertiary-container hover:bg-tertiary hover:text-on-tertiary border border-transparent' },
   ];
 
@@ -82,6 +82,15 @@ export default function Calling() {
     const interval = setInterval(updateTimeSlot, 60000); // Update every minute
 
     return () => clearInterval(interval);
+  }, []);
+
+  // Always work off the "Pretty" sheet
+  useEffect(() => {
+    fetchLeads('Pretty').catch((error) => {
+      setTooltipMessage(error.message || 'Failed to load leads');
+      setShowTooltip(true);
+      setTimeout(() => setShowTooltip(false), 4000);
+    });
   }, []);
 
   const fetchLeads = async (owner) => {
@@ -146,22 +155,6 @@ export default function Calling() {
     setFilteredLeads(filtered);
     setCurrentIndex(0);
     return filtered;
-  };
-
-  const handleOwnerChange = (e) => {
-    const owner = e.target.value;
-    setSelectedOwner(owner);
-    if (owner) {
-      fetchLeads(owner).catch((error) => {
-        setTooltipMessage(error.message || `Failed to load leads for ${owner}`);
-        setShowTooltip(true);
-        setTimeout(() => setShowTooltip(false), 4000);
-      });
-    } else {
-      setLeads([]);
-      setFilteredLeads([]);
-      setSelectedStatus('');
-    }
   };
 
   const handleStatusSelect = (status) => {
@@ -312,22 +305,11 @@ export default function Calling() {
     setIsSearching(true);
 
     try {
-      const [prettyResponse, kainatResponse] = await Promise.all([
-        fetch('/api/fetch-leads?sheetName=Pretty'),
-        fetch('/api/fetch-leads?sheetName=Kainat')
-      ]);
+      const response = await fetch('/api/fetch-leads?sheetName=Pretty');
+      const data = response.ok ? await response.json() : [];
 
-      const prettyData = prettyResponse.ok ? await prettyResponse.json() : [];
-      const kainatData = kainatResponse.ok ? await kainatResponse.json() : [];
-
-      // Add owner information to each lead
-      const prettyLeads = prettyData.map(lead => [...lead, 'Pretty']);
-      const kainatLeads = kainatData.map(lead => [...lead, 'Kainat']);
-
-      const allLeads = [...prettyLeads, ...kainatLeads];
-
-      // Search through all leads by phone number (index 5)
-      const results = allLeads.filter(lead => {
+      // Search through leads by phone number (index 5)
+      const results = data.filter(lead => {
         const phoneNumber = lead[5] || '';
         return phoneNumber.toString().includes(query.toString());
       });
@@ -343,18 +325,11 @@ export default function Calling() {
 
   // Function to navigate to a specific lead from search results
   const navigateToLead = async (lead) => {
-    const leadOwner = lead[lead.length - 1];
     const leadRowNumber = lead[0];
     const leadStatus = lead[6] || 'New Leads';
 
-    let leadsData = leads;
-    if (leadOwner !== selectedOwner) {
-      setSelectedOwner(leadOwner);
-      leadsData = await fetchLeads(leadOwner);
-    }
-
     // Use the returned filtered array directly
-    const filtered = filterLeadsByStatus(leadStatus, leadsData);
+    const filtered = filterLeadsByStatus(leadStatus, leads);
     const filteredIndex = filtered.findIndex(l => l[0] === leadRowNumber);
     if (filteredIndex !== -1) {
       setCurrentIndex(filteredIndex);
@@ -421,7 +396,6 @@ export default function Calling() {
               <div className="text-primary text-label-sm">{lead[3] || 'No Name'}</div>
               <div className="flex justify-between items-center">
                 <span className="text-on-surface-variant text-label-sm">{lead[6] || 'New Lead'}</span>
-                <span className="text-secondary text-label-sm font-medium">{lead[lead.length - 1]}</span>
               </div>
             </button>
           ))}
@@ -440,16 +414,11 @@ export default function Calling() {
     </div>
   );
 
-  const ownerSelect = (
-    <select
-      value={selectedOwner}
-      onChange={handleOwnerChange}
-      className="bg-surface-container-high border border-outline-variant rounded-lg px-3 py-1.5 text-body-md text-on-surface focus:border-primary focus:ring-1 focus:ring-primary outline-none"
-    >
-      <option value="">Select Lead Owner</option>
-      <option value="Pretty">Pretty</option>
-      <option value="Kainat">Kainat</option>
-    </select>
+  const sidebarFooter = (
+    <div className="flex items-center gap-3 text-on-surface-variant border-t border-outline-variant px-4 py-3">
+      <span className="material-symbols-outlined text-[18px]">history_toggle_off</span>
+      <span className="text-label-md">{currentTimeSlot}</span>
+    </div>
   );
 
   const sidebarExtra = (
@@ -490,7 +459,7 @@ export default function Calling() {
   );
 
   return (
-    <AppShell title="Lead Management System" search={search} ownerSelect={ownerSelect} sidebarExtra={sidebarExtra}>
+    <AppShell title="Cognos Sales CRM" search={search} sidebarExtra={sidebarExtra} sidebarFooter={sidebarFooter}>
       {showTooltip && (
         <div className="fixed top-20 left-1/2 -translate-x-1/2 bg-surface-container-highest text-on-surface px-4 py-2 rounded-lg shadow-lg z-50 border border-outline-variant">
           {tooltipMessage}
@@ -500,13 +469,6 @@ export default function Calling() {
       <div className="flex flex-col gap-6">
         {loading ? (
           <div className="text-center text-on-surface-variant py-16">Loading leads...</div>
-        ) : !selectedOwner ? (
-          <div className="bg-surface-container rounded-xl border border-outline-variant p-12 text-center">
-            <h2 className="text-headline-md font-bold text-on-surface mb-2">Select a lead owner</h2>
-            <p className="text-body-md text-on-surface-variant">
-              Choose a lead owner from the top right to start working through their leads.
-            </p>
-          </div>
         ) : filteredLeads.length === 0 ? (
           <div className="bg-surface-container rounded-xl border border-outline-variant p-12 text-center">
             <h2 className="text-headline-md font-bold text-on-surface mb-2">No leads found</h2>
@@ -650,10 +612,6 @@ export default function Calling() {
                     </button>
                   ))}
                 </div>
-                <div className="flex items-center gap-2 text-on-surface-variant border-t border-outline-variant pt-3 mt-auto">
-                  <span className="material-symbols-outlined text-[18px]">history_toggle_off</span>
-                  <span className="text-label-md">{currentTimeSlot}</span>
-                </div>
               </div>
 
               {/* Notes + Time Slot */}
@@ -695,9 +653,6 @@ export default function Calling() {
 
             {/* Sales Pitch */}
             <div className="flex flex-col gap-4">
-              <div className="flex justify-between items-center px-2">
-                <h3 className="text-headline-md font-bold">Sales Pitch Script</h3>
-              </div>
               <div className="bg-inverse-surface text-inverse-on-surface rounded-xl p-8 shadow-md border border-outline-variant h-full leading-relaxed text-body-lg">
                 <p className="mb-4">Assalam o Alaikum!</p>
                 <p className="mb-4">

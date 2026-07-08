@@ -10,13 +10,13 @@ const NAV_ITEMS = [
   { href: "/admin", label: "Admin Panel", icon: "admin_panel_settings" },
 ];
 
-export default function Sidebar({ children }) {
+export default function Sidebar({ children, footerExtra }) {
   const pathname = usePathname();
 
   return (
     <nav className="w-[280px] h-screen fixed left-0 top-0 bg-surface-container-low border-r border-outline-variant shadow-sm z-20 hidden md:flex flex-col gap-2 p-4">
       <div className="mb-6">
-        <h1 className="text-headline-md font-bold text-primary mb-1">Lead Management</h1>
+        <h1 className="text-headline-md font-bold text-primary mb-1">Cognos Sales CRM</h1>
         <p className="text-body-md text-on-surface-variant">High-Velocity Sales</p>
       </div>
 
@@ -54,6 +54,8 @@ export default function Sidebar({ children }) {
           </ul>
         )}
       </div>
+
+      {footerExtra}
 
       <div className="mt-auto border-t border-outline-variant pt-4">
         <ul className="space-y-1">

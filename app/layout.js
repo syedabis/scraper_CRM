@@ -9,8 +9,8 @@ const geist = Geist({
 });
 
 export const metadata = {
-  title: "DataCrumbs Lead Management",
-  description: "Capture and track your sales leads efficiently with DataCrumbs Lead Management System",
+  title: "Cognos Sales CRM",
+  description: "Capture and track your sales leads efficiently with Cognos Sales CRM",
 };
 
 export default function RootLayout({ children }) {

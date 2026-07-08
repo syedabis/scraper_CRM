@@ -2,17 +2,24 @@ import { SignUp } from "@clerk/nextjs";
 
 export default function SignUpPage() {
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-6">
+    <div className="min-h-screen bg-[#f4f4f8] flex flex-col items-center justify-center p-6 gap-8">
+      <div className="text-center">
+        <h1 className="text-3xl font-bold text-[#13131b] mb-1">Cognos Sales CRM</h1>
+        <p className="text-[#54536b]">Create an account to get started</p>
+      </div>
       <SignUp
         appearance={{
           variables: {
-            colorBackground: "#1f1f27",
-            colorPrimary: "#c0c1ff",
-            colorText: "#e4e1ed",
-            colorTextSecondary: "#c7c4d7",
-            colorInputBackground: "#292932",
-            colorInputText: "#e4e1ed",
-            borderRadius: "0.5rem",
+            colorBackground: "#ffffff",
+            colorPrimary: "#494bd6",
+            colorText: "#13131b",
+            colorTextSecondary: "#54536b",
+            colorInputBackground: "#f8f8fb",
+            colorInputText: "#13131b",
+            borderRadius: "0.75rem",
+          },
+          elements: {
+            card: "shadow-xl border border-[#e5e5ec]",
           },
         }}
       />
