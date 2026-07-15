@@ -7,6 +7,7 @@ const NAV_ITEMS = [
   { href: "/", label: "Dashboard", icon: "space_dashboard" },
   { href: "/calling", label: "Calling", icon: "call" },
   { href: "/data-entry", label: "Data Entry", icon: "assignment" },
+  { href: "/send-invoice", label: "Send Invoice", icon: "receipt_long" },
   { href: "/admin", label: "Admin Panel", icon: "admin_panel_settings" },
 ];
 

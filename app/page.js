@@ -18,6 +18,13 @@ const tools = [
     accent: 'secondary',
   },
   {
+    href: '/send-invoice',
+    icon: 'receipt_long',
+    title: 'Send Invoice',
+    description: 'Generate and email a course payment receipt.',
+    accent: 'secondary',
+  },
+  {
     href: '/admin',
     icon: 'admin_panel_settings',
     title: 'Admin Panel',
@@ -61,21 +68,6 @@ export default function Home() {
               </div>
             </button>
           ))}
-
-          <a
-            href="https://payslips-bootcamp1-19de08d23749.herokuapp.com/"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="group bg-surface-container rounded-xl border border-outline-variant p-6 flex flex-col gap-4 hover:border-secondary hover:shadow-lg transition-all duration-200"
-          >
-            <span className="w-12 h-12 rounded-lg flex items-center justify-center bg-secondary-container text-on-secondary-container group-hover:bg-secondary group-hover:text-on-secondary transition-colors duration-200">
-              <span className="material-symbols-outlined text-2xl">receipt_long</span>
-            </span>
-            <div>
-              <h2 className="text-headline-sm font-semibold text-on-surface mb-1">Send Invoice</h2>
-              <p className="text-body-md text-on-surface-variant">Open the invoicing portal in a new tab.</p>
-            </div>
-          </a>
         </div>
       </div>
     </AppShell>

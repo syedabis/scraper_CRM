@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import AppShell from '../components/AppShell';
 
 export default function DataEntry() {
@@ -81,15 +82,13 @@ export default function DataEntry() {
   };
 
   const sendInvoiceLink = (
-    <a
-      href="https://payslips-bootcamp1-19de08d23749.herokuapp.com/"
-      target="_blank"
-      rel="noopener noreferrer"
+    <Link
+      href="/send-invoice"
       className="inline-flex items-center gap-2 px-4 py-2 bg-secondary-container text-on-secondary-container rounded-lg hover:bg-secondary hover:text-on-secondary transition-colors text-label-md"
     >
       <span className="material-symbols-outlined text-[18px]">receipt_long</span>
       Send Invoice
-    </a>
+    </Link>
   );
 
   return (
