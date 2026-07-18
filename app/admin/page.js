@@ -14,12 +14,9 @@ export default function AdminPanel() {
     setAdminLoading(true);
     try {
       const prettyResponse = await fetch("/api/fetch-leads?sheetName=Pretty");
-      const kainatResponse = await fetch("/api/fetch-leads?sheetName=Kainat");
       const prettyData = prettyResponse.ok ? await prettyResponse.json() : [];
-      const kainatData = kainatResponse.ok ? await kainatResponse.json() : [];
       const prettyLeadsWithOwner = prettyData.map((lead) => [...lead, "Pretty"]);
-      const kainatLeadsWithOwner = kainatData.map((lead) => [...lead, "Kainat"]);
-      setAllLeads([...prettyLeadsWithOwner, ...kainatLeadsWithOwner]);
+      setAllLeads(prettyLeadsWithOwner);
     } catch (error) {
       setAllLeads([]);
     } finally {
@@ -163,12 +160,12 @@ export default function AdminPanel() {
         </div>
 
         {/* Date-specific Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto w-full">
-          {['Pretty', 'Kainat'].map((agent) => {
-            const dateStats = getDateStats(agent);
+        <div className="max-w-md mx-auto w-full">
+          {(() => {
+            const dateStats = getDateStats('Pretty');
             return (
-              <div key={`${agent}-date`} className="bg-surface-container rounded-xl border border-outline-variant p-6">
-                <h3 className="text-headline-sm font-semibold text-on-surface mb-4 text-center">{agent}&apos;s Activity on {selectedDate}</h3>
+              <div className="bg-surface-container rounded-xl border border-outline-variant p-6">
+                <h3 className="text-headline-sm font-semibold text-on-surface mb-4 text-center">Pretty&apos;s Activity on {selectedDate}</h3>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="bg-primary-container p-4 rounded-lg text-center">
                     <div className="text-on-primary-container text-2xl font-bold">{dateStats.newLeadsAdded}</div>
@@ -181,16 +178,16 @@ export default function AdminPanel() {
                 </div>
               </div>
             );
-          })}
+          })()}
         </div>
 
         {/* Overall Statistics */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto w-full">
-          {['Pretty', 'Kainat'].map((agent) => {
-            const stats = agentStats(agent);
+        <div className="max-w-md mx-auto w-full">
+          {(() => {
+            const stats = agentStats('Pretty');
             return (
-              <div key={agent} className="bg-surface-container rounded-xl border border-outline-variant p-6">
-                <h3 className="text-headline-sm font-semibold text-on-surface mb-4 text-center">{agent}&apos;s Overall Statistics</h3>
+              <div className="bg-surface-container rounded-xl border border-outline-variant p-6">
+                <h3 className="text-headline-sm font-semibold text-on-surface mb-4 text-center">Pretty&apos;s Overall Statistics</h3>
                 <div className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div className="bg-primary-container p-4 rounded-lg text-center">
@@ -216,7 +213,7 @@ export default function AdminPanel() {
                 </div>
               </div>
             );
-          })}
+          })()}
         </div>
       </div>
     </AppShell>

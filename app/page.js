@@ -1,7 +1,50 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  BarElement,
+  Filler,
+  Tooltip,
+} from 'chart.js';
+import { Line, Bar } from 'react-chartjs-2';
 import AppShell from './components/AppShell';
+
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Filler, Tooltip);
+
+// Chart colours pulled from the design tokens (canvas can't read CSS vars).
+const CHART_PRIMARY = '#c0c1ff';
+const CHART_SECONDARY = '#4edea3';
+const CHART_PRIMARY_SOFT = 'rgba(192, 193, 255, 0.30)';
+const CHART_SECONDARY_SOFT = 'rgba(78, 222, 163, 0.25)';
+const CHART_TEXT = '#908fa0';
+const CHART_GRID = 'rgba(144, 143, 160, 0.15)';
+const CHART_TOOLTIP_BG = '#292932';
+const CHART_TOOLTIP_BORDER = '#464554';
+
+function verticalGradient(context, softColor) {
+  const { ctx, chartArea } = context.chart;
+  if (!chartArea) return 'transparent';
+  const g = ctx.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
+  g.addColorStop(0, softColor);
+  g.addColorStop(1, softColor.replace(/[\d.]+\)$/, '0)'));
+  return g;
+}
+
+const CHART_TOOLTIP = {
+  backgroundColor: CHART_TOOLTIP_BG,
+  titleColor: CHART_TEXT,
+  bodyColor: '#e4e1ed',
+  borderColor: CHART_TOOLTIP_BORDER,
+  borderWidth: 1,
+  padding: 12,
+  boxPadding: 6,
+  usePointStyle: true,
+};
 
 const CONVERTED_STATUSES = ['Confirmation', 'Paid', 'Demo'];
 const TERMINAL_STATUSES = ['Client Lost', 'Confirmation', 'Paid', 'Demo'];
@@ -271,57 +314,6 @@ function buildTimeSeries(leads, range) {
   return { points, niceMax: niceCeil(maxTotal) };
 }
 
-// Monotone cubic (Fritsch–Carlson): smooth curve that never overshoots its data
-// points, so peaks stay pinned to real values — a curve, not a wave.
-function monotonePath(pts, close) {
-  const n = pts.length;
-  if (n === 0) return '';
-  if (n === 1) return `M${pts[0].x.toFixed(2)},${pts[0].y.toFixed(2)}`;
-
-  const xs = pts.map((p) => p.x);
-  const ys = pts.map((p) => p.y);
-  const dx = [];
-  const slope = [];
-  for (let i = 0; i < n - 1; i++) {
-    dx[i] = xs[i + 1] - xs[i] || 0.0001;
-    slope[i] = (ys[i + 1] - ys[i]) / dx[i];
-  }
-  const m = new Array(n);
-  m[0] = slope[0];
-  m[n - 1] = slope[n - 2];
-  for (let i = 1; i < n - 1; i++) {
-    if (slope[i - 1] * slope[i] <= 0) m[i] = 0;
-    else m[i] = (slope[i - 1] + slope[i]) / 2;
-  }
-  for (let i = 0; i < n - 1; i++) {
-    if (slope[i] === 0) {
-      m[i] = 0;
-      m[i + 1] = 0;
-    } else {
-      const a = m[i] / slope[i];
-      const b = m[i + 1] / slope[i];
-      const h = Math.hypot(a, b);
-      if (h > 3) {
-        const t = 3 / h;
-        m[i] = t * a * slope[i];
-        m[i + 1] = t * b * slope[i];
-      }
-    }
-  }
-  let d = `M${xs[0].toFixed(2)},${ys[0].toFixed(2)}`;
-  for (let i = 0; i < n - 1; i++) {
-    const x1 = xs[i] + dx[i] / 3;
-    const y1 = ys[i] + (m[i] * dx[i]) / 3;
-    const x2 = xs[i + 1] - dx[i] / 3;
-    const y2 = ys[i + 1] - (m[i + 1] * dx[i]) / 3;
-    d += ` C${x1.toFixed(2)},${y1.toFixed(2)} ${x2.toFixed(2)},${y2.toFixed(2)} ${xs[i + 1].toFixed(2)},${ys[i + 1].toFixed(2)}`;
-  }
-  if (close) {
-    d += ` L${xs[n - 1].toFixed(2)},100 L${xs[0].toFixed(2)},100 Z`;
-  }
-  return d;
-}
-
 function AnimatedNumber({ value, duration = 700 }) {
   const [display, setDisplay] = useState(value);
   const fromRef = useRef(value);
@@ -364,10 +356,9 @@ function DeltaBadge({ delta, size = 'md' }) {
   );
 }
 
-function LeadsAreaChart({ points, niceMax }) {
-  const [hover, setHover] = useState(null);
-  const plotRef = useRef(null);
-
+// Leads Overview — Chart.js line chart. tension + spanGaps match the reference
+// chart.html, so a zero-lead day dips to the baseline and recovers smoothly.
+function LeadsLineChart({ points, niceMax }) {
   if (points.length < 2) {
     return (
       <div className="h-64 flex items-center justify-center text-on-surface-variant text-body-md">
@@ -376,127 +367,133 @@ function LeadsAreaChart({ points, niceMax }) {
     );
   }
 
-  const n = points.length;
-  const xPct = (i) => (i / (n - 1)) * 100;
-  const yPct = (v) => (1 - v / niceMax) * 100;
-  const toXY = (key) => points.map((p, i) => ({ x: xPct(i), y: yPct(p[key]) }));
-
-  const totalXY = toXY('total');
-  const convertedXY = toXY('converted');
-
-  const yTicks = [1, 0.75, 0.5, 0.25, 0].map((f) => Math.round(niceMax * f));
-  const labelStep = Math.max(1, Math.ceil(n / 8));
-
-  const handleMove = (e) => {
-    const rect = plotRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    const frac = (e.clientX - rect.left) / rect.width;
-    const idx = Math.max(0, Math.min(n - 1, Math.round(frac * (n - 1))));
-    setHover(idx);
+  const data = {
+    labels: points.map((p) => p.label),
+    datasets: [
+      {
+        label: 'Total Leads',
+        data: points.map((p) => p.total),
+        borderColor: CHART_PRIMARY,
+        borderWidth: 2.5,
+        backgroundColor: (ctx) => verticalGradient(ctx, CHART_PRIMARY_SOFT),
+        fill: true,
+        tension: 0.4,
+        spanGaps: true,
+        pointBackgroundColor: CHART_PRIMARY,
+        pointBorderWidth: 0,
+        pointRadius: 3,
+        pointHoverRadius: 6,
+        pointHitRadius: 12,
+      },
+      {
+        label: 'Converted',
+        data: points.map((p) => p.converted),
+        borderColor: CHART_SECONDARY,
+        borderWidth: 2.5,
+        backgroundColor: (ctx) => verticalGradient(ctx, CHART_SECONDARY_SOFT),
+        fill: true,
+        tension: 0.4,
+        spanGaps: true,
+        pointBackgroundColor: CHART_SECONDARY,
+        pointBorderWidth: 0,
+        pointRadius: 3,
+        pointHoverRadius: 6,
+        pointHitRadius: 12,
+      },
+    ],
   };
 
-  const hoverPoint = hover !== null ? points[hover] : null;
-  const hoverX = hover !== null ? xPct(hover) : 0;
-  const tooltipTranslate = hoverX > 65 ? '-100%' : hoverX < 15 ? '0%' : '-50%';
+  const options = {
+    responsive: true,
+    maintainAspectRatio: false,
+    interaction: { mode: 'index', intersect: false },
+    animation: { duration: 900, easing: 'easeOutQuart' },
+    // Grow the line up from the baseline on mount / date change.
+    animations: {
+      y: {
+        from: (ctx) =>
+          ctx.type === 'data' && ctx.mode === 'default'
+            ? ctx.chart.scales.y.getPixelForValue(0)
+            : undefined,
+      },
+    },
+    plugins: {
+      legend: { display: false },
+      tooltip: CHART_TOOLTIP,
+    },
+    scales: {
+      x: {
+        grid: { display: false },
+        ticks: { color: CHART_TEXT, font: { size: 11 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 8 },
+        border: { display: false },
+      },
+      y: {
+        min: 0,
+        suggestedMax: niceMax,
+        ticks: { color: CHART_TEXT, font: { size: 11 }, padding: 8, stepSize: Math.max(1, Math.round(niceMax / 4)) },
+        grid: { color: CHART_GRID, drawTicks: false },
+        border: { display: false },
+      },
+    },
+  };
 
   return (
-    <div className="flex gap-3">
-      <div className="flex flex-col justify-between h-64 w-7 text-right text-label-sm text-on-surface-variant">
-        {yTicks.map((t, i) => (
-          <span key={i}>{t}</span>
-        ))}
-      </div>
-      <div className="flex-1 min-w-0">
-        <div
-          ref={plotRef}
-          className="relative h-64 cursor-crosshair"
-          onMouseMove={handleMove}
-          onMouseLeave={() => setHover(null)}
-        >
-          <div className="absolute inset-0 flex flex-col justify-between pointer-events-none">
-            {yTicks.map((_, i) => (
-              <div key={i} className="border-t border-dashed border-outline-variant/40" />
-            ))}
-          </div>
+    <div className="h-64">
+      <Line data={data} options={options} />
+    </div>
+  );
+}
 
-          <svg
-            className="absolute inset-0 w-full h-full pointer-events-none"
-            viewBox="0 0 100 100"
-            preserveAspectRatio="none"
-          >
-            <defs>
-              <linearGradient id="areaTotal" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="var(--color-primary)" stopOpacity="0.35" />
-                <stop offset="100%" stopColor="var(--color-primary)" stopOpacity="0" />
-              </linearGradient>
-              <linearGradient id="areaConverted" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="var(--color-secondary)" stopOpacity="0.30" />
-                <stop offset="100%" stopColor="var(--color-secondary)" stopOpacity="0" />
-              </linearGradient>
-            </defs>
-            <path className="animate-fade-in" d={monotonePath(totalXY, true)} fill="url(#areaTotal)" />
-            <path className="animate-fade-in" d={monotonePath(convertedXY, true)} fill="url(#areaConverted)" />
-            <path
-              className="animate-draw-line"
-              pathLength="1"
-              d={monotonePath(totalXY, false)}
-              fill="none"
-              stroke="var(--color-primary)"
-              strokeWidth="2.5"
-              vectorEffect="non-scaling-stroke"
-              strokeLinejoin="round"
-              strokeLinecap="round"
-            />
-            <path
-              className="animate-draw-line"
-              pathLength="1"
-              d={monotonePath(convertedXY, false)}
-              fill="none"
-              stroke="var(--color-secondary)"
-              strokeWidth="2.5"
-              vectorEffect="non-scaling-stroke"
-              strokeLinejoin="round"
-              strokeLinecap="round"
-            />
-          </svg>
+// Conversion by Attempts — grouped bar chart (Total vs Converted per bucket).
+function AttemptsBarChart({ bucketStats }) {
+  const data = {
+    labels: ATTEMPT_BUCKETS,
+    datasets: [
+      {
+        label: 'Total',
+        data: ATTEMPT_BUCKETS.map((b) => bucketStats[b].total),
+        backgroundColor: CHART_PRIMARY,
+        borderRadius: 4,
+        borderSkipped: false,
+        maxBarThickness: 26,
+      },
+      {
+        label: 'Converted',
+        data: ATTEMPT_BUCKETS.map((b) => bucketStats[b].converted),
+        backgroundColor: CHART_SECONDARY,
+        borderRadius: 4,
+        borderSkipped: false,
+        maxBarThickness: 26,
+      },
+    ],
+  };
 
-          {hover !== null && (
-            <div className="absolute inset-0 pointer-events-none">
-              <div
-                className="absolute top-0 bottom-0 w-px bg-outline/70"
-                style={{ left: `${hoverX}%` }}
-              />
-              <div
-                className="absolute w-3 h-3 rounded-full bg-primary ring-2 ring-surface-container transition-all duration-150"
-                style={{ left: `${hoverX}%`, top: `${yPct(hoverPoint.total)}%`, transform: 'translate(-50%,-50%)' }}
-              />
-              <div
-                className="absolute w-3 h-3 rounded-full bg-secondary ring-2 ring-surface-container transition-all duration-150"
-                style={{ left: `${hoverX}%`, top: `${yPct(hoverPoint.converted)}%`, transform: 'translate(-50%,-50%)' }}
-              />
-              <div
-                className="absolute top-1 bg-surface-container-highest border border-outline-variant rounded-lg px-3 py-2 shadow-lg text-left"
-                style={{ left: `${hoverX}%`, transform: `translateX(${tooltipTranslate})` }}
-              >
-                <div className="text-label-sm text-on-surface-variant mb-1 whitespace-nowrap">{hoverPoint.label}</div>
-                <div className="flex items-center gap-2 text-label-md text-on-surface whitespace-nowrap">
-                  <span className="w-2 h-2 rounded-full bg-primary" /> Total: {hoverPoint.total}
-                </div>
-                <div className="flex items-center gap-2 text-label-md text-on-surface whitespace-nowrap">
-                  <span className="w-2 h-2 rounded-full bg-secondary" /> Converted: {hoverPoint.converted}
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-        <div className="flex mt-2 text-label-sm text-on-surface-variant">
-          {points.map((p, i) => (
-            <span key={i} className="flex-1 text-center truncate">
-              {i % labelStep === 0 || i === n - 1 ? p.label : ''}
-            </span>
-          ))}
-        </div>
-      </div>
+  const options = {
+    responsive: true,
+    maintainAspectRatio: false,
+    animation: { duration: 900, easing: 'easeOutQuart' },
+    plugins: {
+      legend: { display: false },
+      tooltip: CHART_TOOLTIP,
+    },
+    scales: {
+      x: {
+        grid: { display: false },
+        ticks: { color: CHART_TEXT, font: { size: 11 } },
+        border: { display: false },
+      },
+      y: {
+        min: 0,
+        ticks: { color: CHART_TEXT, font: { size: 11 }, padding: 8, precision: 0 },
+        grid: { color: CHART_GRID, drawTicks: false },
+        border: { display: false },
+      },
+    },
+  };
+
+  return (
+    <div className="flex-1 min-h-56">
+      <Bar data={data} options={options} />
     </div>
   );
 }
@@ -521,15 +518,13 @@ export default function Home() {
     setLoading(true);
     setError('');
     try {
-      const [prettyRes, kainatRes, installmentsRes] = await Promise.all([
+      const [prettyRes, installmentsRes] = await Promise.all([
         fetch('/api/fetch-leads?sheetName=Pretty'),
-        fetch('/api/fetch-leads?sheetName=Kainat'),
         fetch('/api/fetch-installments'),
       ]);
 
       const prettyLeads = prettyRes.ok ? await prettyRes.json() : [];
-      const kainatLeads = kainatRes.ok ? await kainatRes.json() : [];
-      setAllLeads([...prettyLeads, ...kainatLeads]);
+      setAllLeads(prettyLeads);
 
       if (installmentsRes.ok) {
         setInstallmentStats(await installmentsRes.json());
@@ -566,10 +561,6 @@ export default function Home() {
   const timeSeries = useMemo(() => buildTimeSeries(allLeads, activeRange), [allLeads, activeRange]);
 
   const heroDelta = previousStats ? calcDelta(stats.totalLeads, previousStats.totalLeads) : null;
-
-  const maxBucketTotal = Math.max(1, ...ATTEMPT_BUCKETS.map((b) => stats.bucketStats[b].total));
-  const niceMaxBars = Math.max(10, Math.ceil(maxBucketTotal / 10) * 10);
-  const barTicks = [1, 0.75, 0.5, 0.25, 0].map((f) => Math.round(niceMaxBars * f));
 
   const rangeLabel = formatRangeLabel(activeRange, preset);
   const chartKey = `${rangeLabel}:${timeSeries.points.length}:${timeSeries.points.reduce((s, p) => s + p.total, 0)}`;
@@ -713,7 +704,7 @@ export default function Home() {
                 ) : (
                   <p className="text-label-md text-on-surface-variant mb-5">Leads over time</p>
                 )}
-                <LeadsAreaChart key={chartKey} points={timeSeries.points} niceMax={timeSeries.niceMax} />
+                <LeadsLineChart key={chartKey} points={timeSeries.points} niceMax={timeSeries.niceMax} />
                 <div className="flex items-center gap-6 mt-4 pl-10">
                   <span className="flex items-center gap-2 text-label-sm text-on-surface-variant">
                     <span className="w-3 h-3 rounded-full bg-primary" /> Total Leads
@@ -730,50 +721,7 @@ export default function Home() {
                 style={{ animationDelay: '190ms' }}
               >
                 <h3 className="text-headline-sm font-semibold text-on-surface mb-5">Conversion by Attempts</h3>
-                <div className="flex-1 flex gap-2 min-h-56">
-                  <div className="flex flex-col justify-between w-6 text-right text-label-sm text-on-surface-variant">
-                    {barTicks.map((t, i) => (
-                      <span key={i}>{t}</span>
-                    ))}
-                  </div>
-                  <div className="flex-1 min-w-0 flex flex-col">
-                    <div className="relative flex-1">
-                      <div className="absolute inset-0 flex flex-col justify-between">
-                        {barTicks.map((_, i) => (
-                          <div key={i} className="border-t border-dashed border-outline-variant/40" />
-                        ))}
-                      </div>
-                      <div className="relative grid grid-cols-4 items-end gap-4 h-full">
-                        {ATTEMPT_BUCKETS.map((bucket, bi) => {
-                          const { total, converted } = stats.bucketStats[bucket];
-                          return (
-                            <div key={bucket} className="flex items-end justify-center gap-2 h-full">
-                              <div className="flex-1 max-w-14 flex flex-col items-center justify-end h-full">
-                                {total > 0 && <span className="text-label-sm text-on-surface-variant mb-1">{total}</span>}
-                                <div
-                                  className="w-full bg-primary rounded-t animate-grow-up"
-                                  style={{ height: `${Math.round((total / niceMaxBars) * 100)}%`, animationDelay: `${bi * 80}ms` }}
-                                />
-                              </div>
-                              <div className="flex-1 max-w-14 flex flex-col items-center justify-end h-full">
-                                {converted > 0 && <span className="text-label-sm text-secondary mb-1">{converted}</span>}
-                                <div
-                                  className="w-full bg-secondary rounded-t animate-grow-up"
-                                  style={{ height: `${Math.round((converted / niceMaxBars) * 100)}%`, animationDelay: `${bi * 80 + 40}ms` }}
-                                />
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-4 gap-4 mt-2 text-label-sm text-on-surface-variant text-center">
-                      {ATTEMPT_BUCKETS.map((bucket) => (
-                        <span key={bucket}>{bucket}</span>
-                      ))}
-                    </div>
-                  </div>
-                </div>
+                <AttemptsBarChart key={chartKey} bucketStats={stats.bucketStats} />
                 <div className="flex items-center gap-4 mt-4">
                   <span className="flex items-center gap-2 text-label-sm text-on-surface-variant">
                     <span className="w-3 h-3 rounded-full bg-primary" /> Total
