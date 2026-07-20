@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef, useId } from 'react';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -12,71 +12,168 @@ import {
   Tooltip,
 } from 'chart.js';
 import { Line, Bar } from 'react-chartjs-2';
+import { UserButton } from '@clerk/nextjs';
 import AppShell from './components/AppShell';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Filler, Tooltip);
 
-// Chart colours pulled from the design tokens (canvas can't read CSS vars).
-const CHART_PRIMARY = '#c0c1ff';
-const CHART_SECONDARY = '#4edea3';
-const CHART_PRIMARY_SOFT = 'rgba(192, 193, 255, 0.30)';
-const CHART_SECONDARY_SOFT = 'rgba(78, 222, 163, 0.25)';
-const CHART_TEXT = '#908fa0';
-const CHART_GRID = 'rgba(144, 143, 160, 0.15)';
-const CHART_TOOLTIP_BG = '#292932';
-const CHART_TOOLTIP_BORDER = '#464554';
+// ── Template reskin palette (canvas can't read CSS vars) ──────────────────────
+const C_PURPLE = '#a855f7';
+const C_GREEN = '#10b981';
+const C_ORANGE = '#f97316';
+const C_BLUE = '#3b82f6';
+const C_MUTED = '#8b949e';
+const C_GRID = 'rgba(255,255,255,0.04)';
 
-function verticalGradient(context, softColor) {
+const CHART_TOOLTIP = {
+  backgroundColor: 'rgba(14, 17, 30, 0.92)',
+  titleColor: C_MUTED,
+  bodyColor: '#ffffff',
+  borderColor: 'rgba(255,255,255,0.1)',
+  borderWidth: 1,
+  padding: 10,
+  boxPadding: 4,
+  usePointStyle: true,
+  titleFont: { size: 10, weight: 'normal' },
+  bodyFont: { size: 11, weight: 'bold' },
+};
+
+// Vertical fade gradient for area/sparkline fills.
+function vGradient(context, hex, topAlpha = '55') {
   const { ctx, chartArea } = context.chart;
-  if (!chartArea) return 'transparent';
+  if (!chartArea) return `${hex}00`;
   const g = ctx.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
-  g.addColorStop(0, softColor);
-  g.addColorStop(1, softColor.replace(/[\d.]+\)$/, '0)'));
+  g.addColorStop(0, hex + topAlpha);
+  g.addColorStop(1, `${hex}00`);
   return g;
 }
 
-const CHART_TOOLTIP = {
-  backgroundColor: CHART_TOOLTIP_BG,
-  titleColor: CHART_TEXT,
-  bodyColor: '#e4e1ed',
-  borderColor: CHART_TOOLTIP_BORDER,
-  borderWidth: 1,
-  padding: 12,
-  boxPadding: 6,
-  usePointStyle: true,
+// Neon glow: wrap each line dataset draw with a coloured canvas shadow.
+const neonLinePlugin = {
+  id: 'neonLine',
+  beforeDatasetDraw(chart, args) {
+    if (args.meta.type !== 'line') return;
+    const color = chart.data.datasets[args.index]?.borderColor;
+    const { ctx } = chart;
+    ctx.save();
+    ctx.shadowColor = typeof color === 'string' ? color : 'rgba(168,85,247,0.9)';
+    ctx.shadowBlur = 14;
+  },
+  afterDatasetDraw(chart, args) {
+    if (args.meta.type !== 'line') return;
+    chart.ctx.restore();
+  },
+};
+
+// Neon glow for bar datasets — colour follows each bar's fill.
+const neonBarPlugin = {
+  id: 'neonBar',
+  beforeDatasetDraw(chart, args) {
+    if (args.meta.type !== 'bar') return;
+    const color = chart.data.datasets[args.index]?.backgroundColor;
+    const { ctx } = chart;
+    ctx.save();
+    ctx.shadowColor = typeof color === 'string' ? color : 'rgba(168,85,247,0.9)';
+    ctx.shadowBlur = 12;
+  },
+  afterDatasetDraw(chart, args) {
+    if (args.meta.type !== 'bar') return;
+    chart.ctx.restore();
+  },
 };
 
 const CONVERTED_STATUSES = ['Confirmation', 'Paid', 'Demo'];
 const TERMINAL_STATUSES = ['Client Lost', 'Confirmation', 'Paid', 'Demo'];
 const ATTEMPT_BUCKETS = ['1', '2', '3', '4+'];
 const ATTEMPT_MILESTONES = [1, 2, 3, 4];
+// Per-attempt "slots" live in their own sheet columns (G/H/I/J). fetch-leads
+// prepends the row number, so those land at these array indices.
+const ATTEMPT_SLOT_INDEX = { 1: 7, 2: 8, 3: 9, 4: 10 };
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-// "Still needed" milestones for the Leads by Attempts cards: how many in-range
-// leads haven't yet reached N attempts and don't already have a terminal status
-// (so a lead that closed out — lost/confirmed/paid/demo'd — stops counting
-// against every later milestone, not just the ones it already passed).
 const ATTEMPTS_NEEDED_META = {
-  1: { label: '1st Attempt', accent: 'primary' },
-  2: { label: '2nd Attempt', accent: 'secondary' },
-  3: { label: '3rd Attempt', accent: 'info' },
-  4: { label: '4th Attempt', accent: 'tertiary' },
+  1: { label: '1st Attempt' },
+  2: { label: '2nd Attempt' },
+  3: { label: '3rd Attempt' },
+  4: { label: '4th Attempt' },
 };
 
+// Per-column accents for the Leads by Attempts cards.
+const ATTEMPT_COL_META = {
+  1: { iconBg: 'bg-brand-purple/10 text-brand-purple border border-brand-purple/20', icon: 'groups' },
+  2: { iconBg: 'bg-brand-green/10 text-brand-green border border-brand-green/20', icon: 'how_to_reg' },
+  3: { iconBg: 'bg-brand-orange/10 text-brand-orange border border-brand-orange/20', icon: 'group' },
+  4: { iconBg: 'bg-brand-blue/10 text-brand-blue border border-brand-blue/20', icon: 'headset_mic' },
+};
+
+// KPI accent map: floor-glow class, spark colour, icon chip classes.
+const KPI_META = {
+  purple: { floor: 'kpi-purple', color: C_PURPLE, iconBg: 'bg-brand-purple/10 text-brand-purple border border-brand-purple/20' },
+  green: { floor: 'kpi-green', color: C_GREEN, iconBg: 'bg-brand-green/10 text-brand-green border border-brand-green/20' },
+  orange: { floor: 'kpi-orange', color: C_ORANGE, iconBg: 'bg-brand-orange/10 text-brand-orange border border-brand-orange/20' },
+  blue: { floor: 'kpi-blue', color: C_BLUE, iconBg: 'bg-brand-blue/10 text-brand-blue border border-brand-blue/20' },
+};
+
+// Lead-state funnel for the per-attempt slot breakdown.
+const LEAD_STATE_ORDER = [
+  { key: 'notCalled', label: 'Not Called Yet', tone: 'muted' },
+  { key: 'notReceived', label: 'Not Received', tone: 'muted' },
+  { key: 'callLater', label: 'Call Later', tone: 'muted' },
+  { key: 'awaiting', label: 'Awaiting Response', tone: 'muted' },
+  { key: 'callReceived', label: 'Call Received', tone: 'muted' },
+  { key: 'formFilled', label: 'Form Filled', tone: 'muted' },
+  { key: 'groupLead', label: 'Group Lead', tone: 'muted' },
+  { key: 'lost', label: 'Client Lost', tone: 'error' },
+  { key: 'converted', label: 'Converted', tone: 'secondary' },
+];
+
+function classifyLeadState(status) {
+  if (!status) return 'notCalled';
+  if (CONVERTED_STATUSES.includes(status)) return 'converted';
+  switch (status) {
+    case 'Client Lost':
+      return 'lost';
+    case 'Not Received':
+      return 'notReceived';
+    case 'Call Later':
+      return 'callLater';
+    case 'Awaiting Response':
+      return 'awaiting';
+    case 'Call Received':
+      return 'callReceived';
+    case 'Form Filled':
+      return 'formFilled';
+    case 'Group Lead':
+      return 'groupLead';
+    default:
+      return 'notCalled';
+  }
+}
+
+function emptyStateBreakdown() {
+  return LEAD_STATE_ORDER.reduce((acc, s) => {
+    acc[s.key] = 0;
+    return acc;
+  }, {});
+}
+
+// Each slot cell is stored as "Status (timestamp)" — pull the status back out.
+function parseSlotStatus(raw) {
+  if (!raw) return '';
+  const str = raw.toString().trim();
+  if (!str) return '';
+  const idx = str.indexOf(' (');
+  return (idx >= 0 ? str.slice(0, idx) : str).trim();
+}
+
 const INSTALLMENT_BATCHES = ['ep-40', 'ep-41', 'ep-42'];
-const INSTALLMENT_BATCH_META = {
-  'ep-40': { label: 'EP-40', accent: 'primary' },
-  'ep-41': { label: 'EP-41', accent: 'secondary' },
-  'ep-42': { label: 'EP-42', accent: 'info' },
+const BATCH_META = {
+  'ep-40': { label: 'EP-40', color: C_PURPLE, border: 'border-brand-purple/30', iconBg: 'bg-brand-purple/10 text-brand-purple border border-brand-purple/20' },
+  'ep-41': { label: 'EP-41', color: C_GREEN, border: 'border-brand-green/20', iconBg: 'bg-brand-green/10 text-brand-green border border-brand-green/20' },
+  'ep-42': { label: 'EP-42', color: C_BLUE, border: 'border-brand-blue/20', iconBg: 'bg-brand-blue/10 text-brand-blue border border-brand-blue/20' },
 };
 
 const INSTALLMENT_ORDINALS = ['1st', '2nd', '3rd', '4th'];
-const INSTALLMENT_ORDINAL_LABELS = {
-  '1st': '1st Installment',
-  '2nd': '2nd Installment',
-  '3rd': '3rd Installment',
-  '4th': '4th Installment',
-};
 
 function emptyInstallmentCounts() {
   return { paid: 0, notPaying: 0, pending: 0 };
@@ -91,27 +188,6 @@ function emptyBatchCounts() {
     }, {}),
   };
 }
-
-const ICON_SOLID_CLASSES = {
-  primary: 'bg-primary text-on-primary',
-  secondary: 'bg-secondary text-on-secondary',
-  info: 'bg-info text-on-info',
-  tertiary: 'bg-tertiary text-on-tertiary',
-};
-
-const TEXT_ACCENT_CLASSES = {
-  primary: 'text-primary',
-  secondary: 'text-secondary',
-  info: 'text-info',
-  tertiary: 'text-tertiary',
-};
-
-const BAR_SOLID_CLASSES = {
-  primary: 'bg-primary',
-  secondary: 'bg-secondary',
-  info: 'bg-info',
-  tertiary: 'bg-tertiary',
-};
 
 const PRESET_OPTIONS = [
   { value: 'last7', label: 'Last 7 Days' },
@@ -210,6 +286,10 @@ function computeStatsForRange(leads, range) {
     : leads;
 
   const bucketStats = emptyBucketStats();
+  const slotBreakdown = ATTEMPT_MILESTONES.reduce((acc, n) => {
+    acc[n] = emptyStateBreakdown();
+    return acc;
+  }, {});
   const attemptsNeeded = ATTEMPT_MILESTONES.reduce((acc, n) => {
     acc[n] = 0;
     return acc;
@@ -232,6 +312,13 @@ function computeStatsForRange(leads, range) {
       });
     }
 
+    // Per-attempt outcome comes from that attempt's own slot column, not the
+    // lead's single overall status — so each column reflects that call.
+    ATTEMPT_MILESTONES.forEach((n) => {
+      const slotStatus = parseSlotStatus(lead[ATTEMPT_SLOT_INDEX[n]]);
+      if (slotStatus) slotBreakdown[n][classifyLeadState(slotStatus)]++;
+    });
+
     if (attempts < 1) return;
     const bucket = attempts >= 4 ? '4+' : String(attempts);
     bucketStats[bucket].total++;
@@ -240,11 +327,10 @@ function computeStatsForRange(leads, range) {
     }
   });
 
-  return { totalLeads: relevant.length, confirmations, paid, demo, bucketStats, attemptsNeeded };
+  return { totalLeads: relevant.length, confirmations, paid, demo, bucketStats, attemptsNeeded, slotBreakdown };
 }
 
-// Build an actual time series (bucketed by day / week / month over the span) so the
-// chart reflects real data instead of a decorative shape.
+// Build a real time series (bucketed by day / week / month over the span).
 function buildTimeSeries(leads, range) {
   const rows = leads
     .map((l) => ({ date: parseLeadDate(l[1]), status: (l[6] || '').trim() }))
@@ -268,23 +354,24 @@ function buildTimeSeries(leads, range) {
   else if (spanDays <= 132) unit = 'week';
   else unit = 'month';
 
+  const makeBucket = (d) => ({ start: d, total: 0, converted: 0, confirmations: 0, paid: 0, demo: 0 });
   const buckets = [];
   if (unit === 'month') {
     const cursor = new Date(start.getFullYear(), start.getMonth(), 1);
     const last = new Date(end.getFullYear(), end.getMonth(), 1);
     while (cursor <= last) {
-      buckets.push({ start: new Date(cursor), total: 0, converted: 0 });
+      buckets.push(makeBucket(new Date(cursor)));
       cursor.setMonth(cursor.getMonth() + 1);
     }
   } else {
     const step = unit === 'week' ? 7 : 1;
     const cursor = new Date(start);
     while (cursor <= end) {
-      buckets.push({ start: new Date(cursor), total: 0, converted: 0 });
+      buckets.push(makeBucket(new Date(cursor)));
       cursor.setDate(cursor.getDate() + step);
     }
   }
-  if (!buckets.length) buckets.push({ start: new Date(start), total: 0, converted: 0 });
+  if (!buckets.length) buckets.push(makeBucket(new Date(start)));
 
   const firstStart = buckets[0].start;
   const firstMs = firstStart.getTime();
@@ -302,6 +389,9 @@ function buildTimeSeries(leads, range) {
     if (i < 0 || i >= buckets.length) return;
     buckets[i].total++;
     if (CONVERTED_STATUSES.includes(r.status)) buckets[i].converted++;
+    if (r.status === 'Confirmation') buckets[i].confirmations++;
+    if (r.status === 'Paid') buckets[i].paid++;
+    if (r.status === 'Demo') buckets[i].demo++;
   });
 
   const labelFmt = (d) =>
@@ -309,7 +399,14 @@ function buildTimeSeries(leads, range) {
       ? d.toLocaleDateString('en-US', { month: 'short' })
       : `${d.getMonth() + 1}/${d.getDate()}`;
 
-  const points = buckets.map((b) => ({ label: labelFmt(b.start), total: b.total, converted: b.converted }));
+  const points = buckets.map((b) => ({
+    label: labelFmt(b.start),
+    total: b.total,
+    converted: b.converted,
+    confirmations: b.confirmations,
+    paid: b.paid,
+    demo: b.demo,
+  }));
   const maxTotal = Math.max(1, ...points.map((p) => p.total));
   return { points, niceMax: niceCeil(maxTotal) };
 }
@@ -343,25 +440,56 @@ function AnimatedNumber({ value, duration = 700 }) {
   return <>{display.toLocaleString()}</>;
 }
 
-function DeltaBadge({ delta, size = 'md' }) {
-  if (delta === null) return null;
+function DeltaBadge({ delta }) {
+  if (delta === null || delta === undefined) return <span className="text-dim">— </span>;
   const positive = delta >= 0;
-  const textSize = size === 'sm' ? 'text-label-sm' : 'text-label-md';
   return (
-    <span className={`inline-flex items-center gap-0.5 font-semibold ${textSize} ${positive ? 'text-secondary' : 'text-error'}`}>
-      <span className="material-symbols-outlined text-[15px]">{positive ? 'trending_up' : 'trending_down'}</span>
+    <span className={`font-semibold inline-flex items-center gap-0.5 ${positive ? 'text-brand-green' : 'text-brand-red'}`}>
+      <span className="material-symbols-outlined text-[12px]">{positive ? 'trending_up' : 'trending_down'}</span>
       {positive ? '+' : ''}
       {delta}%
     </span>
   );
 }
 
-// Leads Overview — Chart.js line chart. tension + spanGaps match the reference
-// chart.html, so a zero-lead day dips to the baseline and recovers smoothly.
+// KPI mini trend sparkline.
+function Sparkline({ data, color }) {
+  if (!data || data.length < 2) return <div className="h-10 w-full" />;
+  const chartData = {
+    labels: data.map((_, i) => i),
+    datasets: [
+      {
+        data,
+        borderColor: color,
+        borderWidth: 1.5,
+        tension: 0.4,
+        fill: true,
+        backgroundColor: (ctx) => vGradient(ctx, color, '55'),
+        pointRadius: 0,
+        pointHoverRadius: 0,
+      },
+    ],
+  };
+  const options = {
+    responsive: true,
+    maintainAspectRatio: false,
+    animation: { duration: 800, easing: 'easeOutQuart' },
+    plugins: { legend: { display: false }, tooltip: { enabled: false } },
+    scales: { x: { display: false }, y: { display: false, min: 0 } },
+    layout: { padding: { top: 2, bottom: 2 } },
+  };
+  return (
+    <div className="h-10 w-full">
+      <Line data={chartData} options={options} />
+    </div>
+  );
+}
+
+// Leads Overview — purple area + green line, smooth through zero-lead days.
 function LeadsLineChart({ points, niceMax }) {
   if (points.length < 2) {
     return (
-      <div className="h-64 flex items-center justify-center text-on-surface-variant text-body-md">
+      <div className="h-full flex items-center justify-center text-muted text-label-md">
         Not enough data in this range to plot a trend.
       </div>
     );
@@ -373,32 +501,32 @@ function LeadsLineChart({ points, niceMax }) {
       {
         label: 'Total Leads',
         data: points.map((p) => p.total),
-        borderColor: CHART_PRIMARY,
-        borderWidth: 2.5,
-        backgroundColor: (ctx) => verticalGradient(ctx, CHART_PRIMARY_SOFT),
+        borderColor: C_PURPLE,
+        borderWidth: 2,
+        backgroundColor: (ctx) => vGradient(ctx, C_PURPLE, '66'),
         fill: true,
         tension: 0.4,
         spanGaps: true,
-        pointBackgroundColor: CHART_PRIMARY,
-        pointBorderWidth: 0,
-        pointRadius: 3,
-        pointHoverRadius: 6,
-        pointHitRadius: 12,
+        pointRadius: 0,
+        pointHoverRadius: 5,
+        pointBackgroundColor: C_PURPLE,
+        pointBorderColor: '#fff',
+        pointBorderWidth: 1.5,
       },
       {
         label: 'Converted',
         data: points.map((p) => p.converted),
-        borderColor: CHART_SECONDARY,
-        borderWidth: 2.5,
-        backgroundColor: (ctx) => verticalGradient(ctx, CHART_SECONDARY_SOFT),
-        fill: true,
+        borderColor: C_GREEN,
+        borderWidth: 2,
+        backgroundColor: 'transparent',
+        fill: false,
         tension: 0.4,
         spanGaps: true,
-        pointBackgroundColor: CHART_SECONDARY,
-        pointBorderWidth: 0,
-        pointRadius: 3,
-        pointHoverRadius: 6,
-        pointHitRadius: 12,
+        pointRadius: 0,
+        pointHoverRadius: 5,
+        pointBackgroundColor: C_GREEN,
+        pointBorderColor: '#fff',
+        pointBorderWidth: 1.5,
       },
     ],
   };
@@ -408,43 +536,37 @@ function LeadsLineChart({ points, niceMax }) {
     maintainAspectRatio: false,
     interaction: { mode: 'index', intersect: false },
     animation: { duration: 900, easing: 'easeOutQuart' },
-    // Grow the line up from the baseline on mount / date change.
     animations: {
       y: {
         from: (ctx) =>
-          ctx.type === 'data' && ctx.mode === 'default'
-            ? ctx.chart.scales.y.getPixelForValue(0)
-            : undefined,
+          ctx.type === 'data' && ctx.mode === 'default' ? ctx.chart.scales.y.getPixelForValue(0) : undefined,
       },
     },
-    plugins: {
-      legend: { display: false },
-      tooltip: CHART_TOOLTIP,
-    },
+    plugins: { legend: { display: false }, tooltip: CHART_TOOLTIP },
     scales: {
       x: {
-        grid: { display: false },
-        ticks: { color: CHART_TEXT, font: { size: 11 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 8 },
+        grid: { color: C_GRID },
+        ticks: { color: C_MUTED, font: { size: 10 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 8 },
         border: { display: false },
       },
       y: {
         min: 0,
         suggestedMax: niceMax,
-        ticks: { color: CHART_TEXT, font: { size: 11 }, padding: 8, stepSize: Math.max(1, Math.round(niceMax / 4)) },
-        grid: { color: CHART_GRID, drawTicks: false },
+        grid: { color: C_GRID },
+        ticks: { color: C_MUTED, font: { size: 10 }, padding: 8, stepSize: Math.max(1, Math.round(niceMax / 5)) },
         border: { display: false },
       },
     },
   };
 
   return (
-    <div className="h-64">
-      <Line data={data} options={options} />
+    <div className="h-full w-full">
+      <Line data={data} options={options} plugins={[neonLinePlugin]} />
     </div>
   );
 }
 
-// Conversion by Attempts — grouped bar chart (Total vs Converted per bucket).
+// Conversion by Attempts — thin purple/green grouped bars.
 function AttemptsBarChart({ bucketStats }) {
   const data = {
     labels: ATTEMPT_BUCKETS,
@@ -452,18 +574,16 @@ function AttemptsBarChart({ bucketStats }) {
       {
         label: 'Total',
         data: ATTEMPT_BUCKETS.map((b) => bucketStats[b].total),
-        backgroundColor: CHART_PRIMARY,
-        borderRadius: 4,
-        borderSkipped: false,
-        maxBarThickness: 26,
+        backgroundColor: C_PURPLE,
+        borderRadius: { topLeft: 3, topRight: 3 },
+        maxBarThickness: 16,
       },
       {
         label: 'Converted',
         data: ATTEMPT_BUCKETS.map((b) => bucketStats[b].converted),
-        backgroundColor: CHART_SECONDARY,
-        borderRadius: 4,
-        borderSkipped: false,
-        maxBarThickness: 26,
+        backgroundColor: C_GREEN,
+        borderRadius: { topLeft: 3, topRight: 3 },
+        maxBarThickness: 16,
       },
     ],
   };
@@ -472,28 +592,146 @@ function AttemptsBarChart({ bucketStats }) {
     responsive: true,
     maintainAspectRatio: false,
     animation: { duration: 900, easing: 'easeOutQuart' },
-    plugins: {
-      legend: { display: false },
-      tooltip: CHART_TOOLTIP,
-    },
+    plugins: { legend: { display: false }, tooltip: CHART_TOOLTIP },
     scales: {
-      x: {
-        grid: { display: false },
-        ticks: { color: CHART_TEXT, font: { size: 11 } },
-        border: { display: false },
-      },
+      x: { grid: { display: false }, ticks: { color: C_MUTED, font: { size: 10 } }, border: { display: false } },
       y: {
         min: 0,
-        ticks: { color: CHART_TEXT, font: { size: 11 }, padding: 8, precision: 0 },
-        grid: { color: CHART_GRID, drawTicks: false },
+        grid: { color: C_GRID },
+        ticks: { color: C_MUTED, font: { size: 10 }, padding: 8, precision: 0 },
         border: { display: false },
       },
     },
   };
 
   return (
-    <div className="flex-1 min-h-56">
-      <Bar data={data} options={options} />
+    <div className="h-full w-full">
+      <Bar data={data} options={options} plugins={[neonBarPlugin]} />
+    </div>
+  );
+}
+
+// Small conversion donut for each attempt column — SVG with a blurred glow copy,
+// same neon treatment as the pending ring.
+function MiniDonut({ value, color = C_GREEN }) {
+  const v = Math.max(0, Math.min(100, value || 0));
+  const R = 15;
+  const C = 2 * Math.PI * R;
+  const dash = `${((v / 100) * C).toFixed(2)} ${C.toFixed(2)}`;
+  const uid = useId();
+  const blurId = `md-blur-${uid}`;
+  return (
+    <div className="relative w-9 h-9 shrink-0">
+      {/* Blurred glow copy */}
+      <svg className="absolute inset-0 w-full h-full opacity-80" viewBox="0 0 40 40" style={{ overflow: 'visible' }}>
+        <defs>
+          <filter id={blurId} x="-40%" y="-40%" width="180%" height="180%">
+            <feGaussianBlur stdDeviation="2.5" />
+          </filter>
+        </defs>
+        <circle
+          cx="20"
+          cy="20"
+          r={R}
+          fill="none"
+          stroke={color}
+          strokeWidth="4"
+          strokeDasharray={dash}
+          strokeLinecap="round"
+          transform="rotate(-90 20 20)"
+          filter={`url(#${blurId})`}
+          style={{ transition: 'stroke-dasharray 0.9s cubic-bezier(0.4,0,0.2,1)' }}
+        />
+      </svg>
+      {/* Sharp ring */}
+      <svg className="absolute inset-0 w-full h-full" viewBox="0 0 40 40">
+        <circle cx="20" cy="20" r={R} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="4" />
+        <circle
+          cx="20"
+          cy="20"
+          r={R}
+          fill="none"
+          stroke={color}
+          strokeWidth="4"
+          strokeDasharray={dash}
+          strokeLinecap="round"
+          transform="rotate(-90 20 20)"
+          style={{ transition: 'stroke-dasharray 0.9s cubic-bezier(0.4,0,0.2,1)' }}
+        />
+      </svg>
+    </div>
+  );
+}
+
+// Pending Installments ring — SVG so the neon glow (a blurred copy behind the
+// sharp ring) hugs only the bar, never the card. Follows pending-installement.html.
+function PendingRing({ paid, notPaying, pending }) {
+  const total = paid + notPaying + pending;
+  const R = 50;
+  const C = 2 * Math.PI * R; // 314.159
+  const fraction = total > 0 ? Math.min(1, paid / total) : 0;
+  const dash = `${(fraction * C).toFixed(2)} ${C.toFixed(2)}`;
+  const stops = (
+    <>
+      <stop offset="0%" stopColor="#ff9d5c" />
+      <stop offset="35%" stopColor="#ec4899" />
+      <stop offset="70%" stopColor="#8b5cf6" />
+      <stop offset="100%" stopColor="#3b82f6" />
+    </>
+  );
+
+  return (
+    <div className="relative w-44 h-44">
+      {/* Blurred glow copy */}
+      <svg className="absolute inset-0 w-full h-full opacity-70" viewBox="0 0 120 120" style={{ overflow: 'visible' }}>
+        <defs>
+          <linearGradient id="pendGlow" x1="1" y1="0" x2="0" y2="1">{stops}</linearGradient>
+          <filter id="pendBlur" x="-20%" y="-20%" width="140%" height="140%">
+            <feGaussianBlur stdDeviation="7" />
+          </filter>
+        </defs>
+        <circle
+          cx="60"
+          cy="60"
+          r="50"
+          fill="none"
+          stroke="url(#pendGlow)"
+          strokeWidth="10"
+          strokeDasharray={dash}
+          strokeLinecap="round"
+          transform="rotate(-90 60 60)"
+          filter="url(#pendBlur)"
+          style={{ transition: 'stroke-dasharray 0.9s cubic-bezier(0.4,0,0.2,1)' }}
+        />
+      </svg>
+
+      {/* Sharp ring */}
+      <svg className="absolute inset-0 w-full h-full" viewBox="0 0 120 120" style={{ overflow: 'visible' }}>
+        <defs>
+          <linearGradient id="pendRing" x1="1" y1="0" x2="0" y2="1">{stops}</linearGradient>
+        </defs>
+        <circle cx="60" cy="60" r="50" fill="none" stroke="rgba(255,255,255,0.03)" strokeWidth="10" />
+        <circle
+          cx="60"
+          cy="60"
+          r="50"
+          fill="none"
+          stroke="url(#pendRing)"
+          strokeWidth="10"
+          strokeDasharray={dash}
+          strokeLinecap="round"
+          transform="rotate(-90 60 60)"
+          style={{ transition: 'stroke-dasharray 0.9s cubic-bezier(0.4,0,0.2,1)' }}
+        />
+      </svg>
+
+      {/* Center label */}
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <div className="text-[30px] font-bold text-white leading-none tracking-tight mb-1">
+          <AnimatedNumber value={pending} />
+        </div>
+        <div className="text-[#9ca3af] text-[11px] font-medium tracking-wide">Total Pending</div>
+      </div>
     </div>
   );
 }
@@ -565,302 +803,353 @@ export default function Home() {
   const rangeLabel = formatRangeLabel(activeRange, preset);
   const chartKey = `${rangeLabel}:${timeSeries.points.length}:${timeSeries.points.reduce((s, p) => s + p.total, 0)}`;
 
+  // Conversion rate within each attempt bucket (converted ÷ leads at that attempt).
+  const attemptConversionRates = ATTEMPT_BUCKETS.map((bucket, i) => {
+    const { total, converted } = stats.bucketStats[bucket];
+    return {
+      label: ['1st', '2nd', '3rd', '4th'][i],
+      rate: total > 0 ? Math.round((converted / total) * 100) : 0,
+    };
+  });
+
   const topCards = [
-    { label: 'Total Leads', value: stats.totalLeads, delta: heroDelta, icon: 'group', accent: 'primary' },
+    { label: 'Total Leads', value: stats.totalLeads, delta: heroDelta, icon: 'group', accent: 'purple', series: timeSeries.points.map((p) => p.total) },
     {
       label: 'Confirmations',
       value: stats.confirmations,
       delta: previousStats ? calcDelta(stats.confirmations, previousStats.confirmations) : null,
       icon: 'verified',
-      accent: 'secondary',
+      accent: 'green',
+      series: timeSeries.points.map((p) => p.confirmations),
     },
     {
       label: 'Paid',
       value: stats.paid,
       delta: previousStats ? calcDelta(stats.paid, previousStats.paid) : null,
       icon: 'payments',
-      accent: 'tertiary',
+      accent: 'orange',
+      series: timeSeries.points.map((p) => p.paid),
     },
     {
       label: 'Demo',
       value: stats.demo,
       delta: previousStats ? calcDelta(stats.demo, previousStats.demo) : null,
       icon: 'co_present',
-      accent: 'info',
+      accent: 'blue',
+      series: timeSeries.points.map((p) => p.demo),
     },
   ];
 
   return (
-    <AppShell title="Dashboard">
-      <div className="flex flex-col gap-6">
-        {/* Banner + date range control */}
-        <div className="bg-surface-container rounded-xl border border-outline-variant p-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+    <AppShell title="Dashboard" hideTopNav>
+      <div className="flex flex-col gap-5 text-[13px]">
+        {/* Header */}
+        <div className="flex flex-col md:flex-row md:justify-between md:items-start gap-4">
           <div>
-            <h1 className="text-headline-md font-bold text-on-surface">DataCrumbs Sales Portal</h1>
-            <p className="text-body-md text-on-surface-variant mt-1">Internal Sales Management System</p>
+            <p className="text-muted text-[11px] mb-1">Welcome back 👋</p>
+            <h1 className="text-2xl font-bold text-white tracking-tight mb-0.5">DataCrumbs Sales Portal</h1>
+            <p className="text-dim text-[11px]">Internal Sales Management System</p>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 bg-surface-container-high border border-outline-variant rounded-lg px-3 py-2">
-              <span className="material-symbols-outlined text-on-surface-variant text-[18px]">calendar_today</span>
+
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <div className="header-btn flex items-center px-3.5 py-2 text-xs text-gray-300">
+              <span className="material-symbols-outlined text-[15px] mr-2 text-dim">calendar_today</span>
+              <span className="font-medium">{rangeLabel}</span>
+            </div>
+
+            {preset === 'custom' && (
+              <div className="header-btn flex items-center px-3 py-1.5 gap-1.5 text-xs text-gray-300">
+                <input
+                  type="date"
+                  value={customRange.start}
+                  onChange={(e) => setCustomRange((r) => ({ ...r, start: e.target.value }))}
+                  className="bg-transparent outline-none [color-scheme:dark]"
+                />
+                <span className="text-dim">–</span>
+                <input
+                  type="date"
+                  value={customRange.end}
+                  onChange={(e) => setCustomRange((r) => ({ ...r, end: e.target.value }))}
+                  className="bg-transparent outline-none [color-scheme:dark]"
+                />
+              </div>
+            )}
+
+            <div className="header-btn flex items-center pl-3 pr-2 text-xs text-gray-300">
               <select
                 value={preset}
                 onChange={(e) => setPreset(e.target.value)}
-                className="bg-transparent text-body-md text-on-surface outline-none pr-1"
+                className="bg-transparent py-2 outline-none cursor-pointer"
               >
                 {PRESET_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value} className="bg-surface-container-high">
+                  <option key={opt.value} value={opt.value} className="bg-[#0e111e] text-gray-200">
                     {opt.label}
                   </option>
                 ))}
               </select>
-              {preset === 'custom' ? (
-                <>
-                  <input
-                    type="date"
-                    value={customRange.start}
-                    onChange={(e) => setCustomRange((r) => ({ ...r, start: e.target.value }))}
-                    className="bg-transparent text-body-md text-on-surface outline-none [color-scheme:dark]"
-                  />
-                  <span className="text-on-surface-variant">–</span>
-                  <input
-                    type="date"
-                    value={customRange.end}
-                    onChange={(e) => setCustomRange((r) => ({ ...r, end: e.target.value }))}
-                    className="bg-transparent text-body-md text-on-surface outline-none [color-scheme:dark]"
-                  />
-                </>
-              ) : (
-                <span className="text-label-sm text-on-surface-variant ml-1 whitespace-nowrap">{rangeLabel}</span>
-              )}
             </div>
+
             <button
               onClick={loadData}
               disabled={loading}
               title="Refresh data"
-              className="p-2.5 rounded-lg border border-outline-variant text-on-surface-variant hover:bg-surface-container-high transition-colors disabled:opacity-50"
+              className="header-btn w-9 h-9 flex items-center justify-center text-muted hover:text-white disabled:opacity-50"
             >
-              <span className={`material-symbols-outlined text-[20px] ${loading ? 'animate-spin' : ''}`}>refresh</span>
+              <span className={`material-symbols-outlined text-[16px] ${loading ? 'animate-spin' : ''}`}>refresh</span>
             </button>
+
+            <div className="ml-1 flex items-center">
+              <UserButton afterSignOutUrl="/sign-in" />
+            </div>
           </div>
         </div>
 
         {error && (
-          <div className="bg-error-container/20 text-error border border-error/30 rounded-lg p-4 text-center">
-            {error}
-          </div>
+          <div className="glass-card border-brand-red/30 text-brand-red p-4 text-center text-xs">{error}</div>
         )}
 
         {loading ? (
-          <div className="text-center text-on-surface-variant py-16">Loading analytics...</div>
+          <div className="text-center text-muted py-16">Loading analytics…</div>
         ) : (
           <>
-            {/* Top KPI row */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
-              {topCards.map((card, i) => (
-                <div
-                  key={card.label}
-                  className="animate-fade-up bg-surface-container rounded-xl border border-outline-variant p-5 transition-transform hover:-translate-y-1"
-                  style={{ animationDelay: `${i * 70}ms` }}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="text-label-md text-on-surface-variant uppercase tracking-wide truncate">
-                        {card.label}
-                      </div>
-                      <div className="flex items-baseline gap-2 mt-1.5 flex-wrap">
-                        <span className="text-headline-md font-bold text-on-surface">
+            {/* ROW 1 — KPI cards */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              {topCards.map((card, i) => {
+                const meta = KPI_META[card.accent];
+                return (
+                  <div
+                    key={card.label}
+                    className={`glass-card kpi-card ${meta.floor} p-4 h-[128px] flex flex-col justify-between animate-fade-up`}
+                    style={{ animationDelay: `${i * 70}ms` }}
+                  >
+                    <div className="kpi-content flex items-start gap-3">
+                      <span className={`icon-neon w-9 h-9 shrink-0 rounded-lg flex items-center justify-center ${meta.iconBg}`}>
+                        <span className="material-symbols-outlined text-[18px]">{card.icon}</span>
+                      </span>
+                      <div className="min-w-0">
+                        <p className="text-[11px] text-muted font-medium mb-0.5 truncate">{card.label}</p>
+                        <h2 className="text-2xl font-bold text-white leading-none mb-1.5">
                           <AnimatedNumber value={card.value} />
-                        </span>
-                        <DeltaBadge delta={card.delta} size="sm" />
+                        </h2>
+                        <p className="text-[9px] text-dim flex items-center gap-1 flex-wrap">
+                          <DeltaBadge delta={card.delta} /> vs previous period
+                        </p>
                       </div>
                     </div>
-                    <span className={`w-11 h-11 shrink-0 rounded-lg flex items-center justify-center ${ICON_SOLID_CLASSES[card.accent]}`}>
-                      <span className="material-symbols-outlined text-[22px]">{card.icon}</span>
-                    </span>
+                    <div className="relative z-10">
+                      <Sparkline key={chartKey} data={card.series} color={meta.color} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* ROW 2 — main charts */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+              {/* Leads Overview */}
+              <div className="glass-card lg:col-span-2 p-5 flex flex-col h-[340px] animate-fade-up" style={{ animationDelay: '120ms' }}>
+                <div className="flex justify-between items-start mb-4">
+                  <div>
+                    <h3 className="text-sm font-semibold text-white mb-0.5">Leads Overview</h3>
+                    {heroDelta !== null ? (
+                      <p className="text-[10px] text-dim flex items-center gap-1">
+                        <DeltaBadge delta={heroDelta} /> vs previous period
+                      </p>
+                    ) : (
+                      <p className="text-[10px] text-dim">Leads over time</p>
+                    )}
+                  </div>
+                  <div className="header-btn px-2.5 py-1 text-[10px] text-gray-400">{rangeLabel}</div>
+                </div>
+
+                <div className="flex-1 min-h-0 relative">
+                  <LeadsLineChart key={chartKey} points={timeSeries.points} niceMax={timeSeries.niceMax} />
+                </div>
+
+                <div className="flex justify-center gap-5 mt-2 text-[10px] text-muted font-medium">
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-brand-purple shadow-[0_0_6px_#a855f7]" /> Total Leads
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-brand-green shadow-[0_0_6px_#10b981]" /> Converted
+                  </span>
+                </div>
+              </div>
+
+              {/* Conversion by Attempts */}
+              <div className="glass-card p-5 flex flex-col h-[340px] animate-fade-up" style={{ animationDelay: '190ms' }}>
+                <div className="flex justify-between items-start mb-4">
+                  <h3 className="text-sm font-semibold text-white">Conversion by Attempts</h3>
+                  <div className="grid grid-cols-2 gap-x-2.5 gap-y-0.5 text-[9px] text-muted">
+                    {attemptConversionRates.map((r) => (
+                      <div key={r.label}>
+                        {r.label} <span className="text-brand-green ml-0.5 font-semibold">{r.rate}%</span>
+                      </div>
+                    ))}
                   </div>
                 </div>
-              ))}
-            </div>
 
-            {/* Main chart row */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Leads overview area chart */}
-              <div
-                className="animate-fade-up lg:col-span-2 bg-gradient-to-br from-primary-container/10 to-surface-container rounded-xl border border-outline-variant p-6"
-                style={{ animationDelay: '120ms' }}
-              >
-                <div className="flex items-start justify-between mb-1">
-                  <h3 className="text-headline-sm font-semibold text-on-surface">Leads Overview</h3>
-                  <span className="text-label-sm text-on-surface-variant">{rangeLabel}</span>
+                <div className="flex-1 min-h-0 relative">
+                  <AttemptsBarChart key={chartKey} bucketStats={stats.bucketStats} />
                 </div>
-                {heroDelta !== null ? (
-                  <p className="text-label-md mb-5">
-                    <span className={heroDelta >= 0 ? 'text-secondary font-semibold' : 'text-error font-semibold'}>
-                      {heroDelta >= 0 ? '+' : ''}
-                      {heroDelta}%
-                    </span>{' '}
-                    <span className="text-on-surface-variant">vs previous period</span>
-                  </p>
-                ) : (
-                  <p className="text-label-md text-on-surface-variant mb-5">Leads over time</p>
-                )}
-                <LeadsLineChart key={chartKey} points={timeSeries.points} niceMax={timeSeries.niceMax} />
-                <div className="flex items-center gap-6 mt-4 pl-10">
-                  <span className="flex items-center gap-2 text-label-sm text-on-surface-variant">
-                    <span className="w-3 h-3 rounded-full bg-primary" /> Total Leads
-                  </span>
-                  <span className="flex items-center gap-2 text-label-sm text-on-surface-variant">
-                    <span className="w-3 h-3 rounded-full bg-secondary" /> Converted
-                  </span>
-                </div>
-              </div>
 
-              {/* Conversion by attempts */}
-              <div
-                className="animate-fade-up bg-surface-container rounded-xl border border-outline-variant p-6 flex flex-col"
-                style={{ animationDelay: '190ms' }}
-              >
-                <h3 className="text-headline-sm font-semibold text-on-surface mb-5">Conversion by Attempts</h3>
-                <AttemptsBarChart key={chartKey} bucketStats={stats.bucketStats} />
-                <div className="flex items-center gap-4 mt-4">
-                  <span className="flex items-center gap-2 text-label-sm text-on-surface-variant">
-                    <span className="w-3 h-3 rounded-full bg-primary" /> Total
+                <div className="flex justify-center gap-3 mt-2 text-[9px] text-muted font-medium flex-wrap">
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-[2px] bg-brand-purple shadow-[0_0_6px_#a855f7]" /> Total
                   </span>
-                  <span className="flex items-center gap-2 text-label-sm text-on-surface-variant">
-                    <span className="w-3 h-3 rounded-full bg-secondary" /> Converted (Demo, Paid, Confirmation)
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-[2px] bg-brand-green shadow-[0_0_6px_#10b981]" /> Converted (Demo, Paid, Confirmations)
                   </span>
                 </div>
               </div>
             </div>
 
-            {/* Bottom row: leads by attempts + pending installments */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <div
-                className="animate-fade-up lg:col-span-2 bg-surface-container rounded-xl border border-outline-variant p-6"
-                style={{ animationDelay: '240ms' }}
-              >
-                <div className="flex items-baseline justify-between mb-5">
-                  <h3 className="text-headline-sm font-semibold text-on-surface">Leads by Attempts</h3>
-                  <span className="text-label-sm text-on-surface-variant">still needed</span>
+            {/* ROW 3 — Leads by Attempts + Pending Installments */}
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-5">
+              <div className="glass-card lg:col-span-3 p-5 flex flex-col animate-fade-up" style={{ animationDelay: '240ms' }}>
+                <div className="flex justify-between items-center mb-5">
+                  <h3 className="text-sm font-semibold text-white">Leads by Attempts</h3>
+                  <span className="text-[10px] text-dim">still needed · per-attempt outcomes</span>
                 </div>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 flex-1 auto-rows-fr">
                   {ATTEMPT_MILESTONES.map((n) => {
-                    const meta = ATTEMPTS_NEEDED_META[n];
-                    const count = stats.attemptsNeeded[n];
-                    const pct = stats.totalLeads > 0 ? Math.round((count / stats.totalLeads) * 100) : 0;
+                    const meta = ATTEMPT_COL_META[n];
+                    const slotStates = stats.slotBreakdown[n];
+                    const slotTotal = Object.values(slotStates).reduce((a, b) => a + b, 0);
+                    const convRate = slotTotal > 0 ? Math.round((slotStates.converted / slotTotal) * 100) : 0;
                     return (
-                      <div key={n} className="flex flex-col gap-3">
-                        <div className="flex items-center gap-3">
-                          <span className={`w-9 h-9 shrink-0 rounded-lg flex items-center justify-center ${ICON_SOLID_CLASSES[meta.accent]}`}>
-                            <span className="material-symbols-outlined text-[18px]">groups</span>
-                          </span>
-                          <div className="min-w-0">
-                            <div className={`text-headline-sm font-bold ${TEXT_ACCENT_CLASSES[meta.accent]}`}>
-                              <AnimatedNumber value={count} />
+                      <div
+                        key={n}
+                        className="bg-black/20 border border-white/5 rounded-xl p-3.5 flex flex-col hover:border-white/10 transition-colors"
+                      >
+                        <div className="flex-1 flex flex-col">
+                          <div className="flex items-center gap-2.5 mb-4">
+                            <span className={`icon-neon w-8 h-8 shrink-0 rounded-md flex items-center justify-center ${meta.iconBg}`}>
+                              <span className="material-symbols-outlined text-[16px]">{meta.icon}</span>
+                            </span>
+                            <div className="min-w-0">
+                              <h4 className="text-lg font-bold text-white leading-none">
+                                <AnimatedNumber value={stats.attemptsNeeded[n]} />
+                              </h4>
+                              <p className="text-[10px] text-dim mt-0.5 truncate">{ATTEMPTS_NEEDED_META[n].label} · still needed</p>
                             </div>
-                            <div className="text-label-sm text-on-surface-variant truncate">{meta.label}</div>
+                          </div>
+                          <ul className="flex-1 flex flex-col justify-between text-[11px] font-medium text-muted">
+                            {LEAD_STATE_ORDER.filter((s) => s.key !== 'notCalled').map((s) => {
+                              const c = slotStates[s.key];
+                              const p = stats.totalLeads > 0 ? Math.round((c / stats.totalLeads) * 100) : 0;
+                              const valColor =
+                                s.tone === 'error' ? 'text-brand-red font-bold' : s.tone === 'secondary' ? 'text-brand-green font-bold' : 'text-gray-300';
+                              return (
+                                <li key={s.key} className="flex justify-between gap-1">
+                                  <span className="truncate">{s.label}</span>
+                                  <span className={`whitespace-nowrap ${valColor}`}>
+                                    {c} · {p}%
+                                  </span>
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        </div>
+                        <div className="mt-4 pt-3 border-t border-white/5 flex items-center gap-2.5">
+                          <MiniDonut key={`${chartKey}:${n}`} value={convRate} color={C_GREEN} />
+                          <div className="text-[11px] leading-tight">
+                            <span className="font-bold text-white block">{convRate}%</span>
+                            <span className="text-dim">Converted</span>
                           </div>
                         </div>
-                        <div className="h-1.5 rounded-full bg-surface-container-highest overflow-hidden">
-                          <div
-                            className={`h-full rounded-full ${BAR_SOLID_CLASSES[meta.accent]} transition-all duration-700`}
-                            style={{ width: `${pct}%` }}
-                          />
-                        </div>
-                        <span className="text-label-sm text-on-surface-variant">{pct}% of total leads</span>
                       </div>
                     );
                   })}
                 </div>
               </div>
 
-              <div
-                className="animate-fade-up bg-surface-container rounded-xl border border-outline-variant p-6 flex flex-col"
-                style={{ animationDelay: '310ms' }}
-              >
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-headline-sm font-semibold text-on-surface">Pending Installments</h3>
-                  <span className="w-10 h-10 rounded-lg bg-tertiary text-on-tertiary flex items-center justify-center">
-                    <span className="material-symbols-outlined text-[20px]">schedule</span>
+              {/* Pending Installments — follows pending-installement.html */}
+              <div className="glass-card p-6 flex flex-col relative overflow-hidden animate-fade-up" style={{ animationDelay: '310ms' }}>
+                <div className="relative z-10 flex justify-between items-start mb-6">
+                  <div>
+                    <h3 className="text-white text-[17px] font-semibold tracking-wide mb-3">Pending Installments</h3>
+                    <div className="text-[40px] font-bold text-[#ff9c5a] leading-none mb-1 tracking-tight">
+                      <AnimatedNumber value={installmentStats.pending} />
+                    </div>
+                    <div className="text-[#9ca3af] text-[13px]">awaiting payment</div>
+                  </div>
+                  <span className="icon-neon w-11 h-11 shrink-0 rounded-[12px] bg-brand-orange/10 text-brand-orange border border-brand-orange/20 flex items-center justify-center">
+                    <span className="material-symbols-outlined text-[18px]">schedule</span>
                   </span>
                 </div>
-                <div className="text-headline-lg font-bold text-tertiary">
-                  <AnimatedNumber value={installmentStats.pending} />
+
+                <div className="relative z-10 flex-1 flex items-center justify-center py-2">
+                  <PendingRing
+                    paid={installmentStats.paid}
+                    notPaying={installmentStats.notPaying}
+                    pending={installmentStats.pending}
+                  />
                 </div>
-                <div className="text-body-md text-on-surface-variant mt-1">awaiting payment</div>
-                <div className="mt-auto pt-4 flex gap-6 border-t border-outline-variant">
-                  <div>
-                    <div className="text-body-lg font-semibold text-secondary">
+
+                <div className="relative z-10 grid grid-cols-2 border-t border-white/5 pt-5 mt-6">
+                  <div className="absolute left-1/2 top-[22px] bottom-1 w-px bg-white/5" />
+                  <div className="pr-4">
+                    <div className="text-[#00df89] text-[24px] font-bold leading-none mb-1.5">
                       <AnimatedNumber value={installmentStats.paid} />
                     </div>
-                    <div className="text-label-sm text-on-surface-variant">Paid</div>
+                    <div className="text-[#9ca3af] text-[12px] font-medium tracking-wide">Paid</div>
                   </div>
-                  <div>
-                    <div className="text-body-lg font-semibold text-error">
+                  <div className="pl-6">
+                    <div className="text-[#ff3b5c] text-[24px] font-bold leading-none mb-1.5">
                       <AnimatedNumber value={installmentStats.notPaying} />
                     </div>
-                    <div className="text-label-sm text-on-surface-variant">Not Paying</div>
+                    <div className="text-[#9ca3af] text-[12px] font-medium tracking-wide">Not Paying</div>
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Installments by batch */}
-            <div>
-              <h3 className="text-headline-sm font-semibold text-on-surface mb-4 px-1">Installments by Batch</h3>
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {INSTALLMENT_BATCHES.map((key, i) => {
-                  const meta = INSTALLMENT_BATCH_META[key];
+            {/* ROW 4 — Installments by Batch */}
+            <div id="installments-by-batch" className="glass-card p-5 animate-fade-up" style={{ animationDelay: '370ms' }}>
+              <h3 className="text-sm font-semibold text-white mb-4">Installments by Batch</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {INSTALLMENT_BATCHES.map((key) => {
+                  const meta = BATCH_META[key];
                   const counts = installmentStats.byBatch?.[key] || emptyBatchCounts();
+                  const total = counts.paid + counts.notPaying + counts.pending;
+                  const pct = total > 0 ? Math.round((counts.paid / total) * 100) : 0;
                   return (
-                    <div
-                      key={key}
-                      className="animate-fade-up bg-surface-container rounded-xl border border-outline-variant p-7"
-                      style={{ animationDelay: `${370 + i * 70}ms` }}
-                    >
-                      <div className="flex items-start justify-between gap-3 mb-4">
-                        <span className="text-label-md text-on-surface-variant uppercase tracking-wide">
-                          {meta.label}
-                        </span>
-                        <span className={`w-9 h-9 shrink-0 rounded-lg flex items-center justify-center ${ICON_SOLID_CLASSES[meta.accent]}`}>
-                          <span className="material-symbols-outlined text-[18px]">receipt_long</span>
-                        </span>
+                    <div key={key} className={`bg-black/20 border ${meta.border} rounded-xl p-4`}>
+                      <div className="flex justify-between items-start mb-3">
+                        <div className="flex items-center gap-2.5">
+                          <span className={`w-7 h-7 shrink-0 rounded-md flex items-center justify-center ${meta.iconBg}`}>
+                            <span className="material-symbols-outlined text-[15px]">inventory_2</span>
+                          </span>
+                          <div>
+                            <h4 className="text-[11px] font-bold text-muted leading-tight mb-0.5">{meta.label}</h4>
+                            <div className="flex items-end gap-1">
+                              <span className="text-lg font-bold text-white leading-none">
+                                <AnimatedNumber value={counts.paid} />
+                              </span>
+                              <span className="text-[9px] text-dim pb-px">paid</span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="text-[10px] text-muted font-medium">{pct}%</div>
                       </div>
-                      <div className={`text-headline-lg font-bold ${TEXT_ACCENT_CLASSES[meta.accent]}`}>
-                        <AnimatedNumber value={counts.paid} />
-                      </div>
-                      <div className="text-label-sm text-on-surface-variant mt-1">paid</div>
 
-                      <div className="mt-5 pt-5 border-t border-outline-variant flex flex-col gap-4">
+                      <div className="progress-track mb-4">
+                        <div className="progress-fill" style={{ width: `${pct}%`, background: meta.color, color: meta.color }} />
+                      </div>
+
+                      <div className="flex flex-col gap-2 text-[10px]">
                         {INSTALLMENT_ORDINALS.map((ord) => {
                           const o = counts.byOrdinal?.[ord] || emptyInstallmentCounts();
-                          const started = o.paid + o.notPaying + o.pending > 0;
                           return (
-                            <div key={ord} className="flex items-center justify-between gap-3">
-                              <span className="text-label-sm text-on-surface-variant shrink-0">
-                                {INSTALLMENT_ORDINAL_LABELS[ord]}
+                            <div key={ord} className="flex items-center justify-between">
+                              <span className="text-dim">{ord}</span>
+                              <span className="font-medium text-muted whitespace-nowrap">
+                                <span className="text-gray-300">{o.notPaying}</span> Not Paying
+                                <span className="mx-1.5 text-white/20">·</span>
+                                <span className="text-gray-300">{o.pending}</span> Will Pay
                               </span>
-                              {started ? (
-                                <div className="flex items-center gap-5">
-                                  <span className="flex items-baseline gap-1.5">
-                                    <span className="text-body-lg font-semibold text-error">
-                                      <AnimatedNumber value={o.notPaying} />
-                                    </span>
-                                    <span className="text-label-sm text-on-surface-variant">Not Paying</span>
-                                  </span>
-                                  <span className="flex items-baseline gap-1.5">
-                                    <span className="text-body-lg font-semibold text-on-surface-variant">
-                                      <AnimatedNumber value={o.pending} />
-                                    </span>
-                                    <span className="text-label-sm text-on-surface-variant">Will Pay</span>
-                                  </span>
-                                </div>
-                              ) : (
-                                <span className="flex items-baseline gap-1.5">
-                                  <span className="text-body-lg font-semibold text-on-surface-variant/50">0</span>
-                                  <span className="text-label-sm text-on-surface-variant/50">Not Started</span>
-                                </span>
-                              )}
                             </div>
                           );
                         })}
@@ -870,6 +1159,10 @@ export default function Home() {
                 })}
               </div>
             </div>
+
+            <footer className="text-center text-[10px] text-dim mt-1 mb-2 font-medium">
+              © {new Date().getFullYear()} DataCrumbs Sales CRM. All rights reserved.
+            </footer>
           </>
         )}
       </div>

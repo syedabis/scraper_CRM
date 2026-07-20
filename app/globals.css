@@ -38,9 +38,18 @@
   --color-on-info: #003547;
   --color-info-container: #0077b6;
   --color-on-info-container: #cdeeff;
-  --color-background: #13131b;
+  --color-background: #03040b;
   --color-on-background: #e4e1ed;
   --color-surface-variant: #34343d;
+
+  /* Template reskin brand accents */
+  --color-brand-purple: #a855f7;
+  --color-brand-green: #10b981;
+  --color-brand-orange: #f97316;
+  --color-brand-blue: #3b82f6;
+  --color-brand-red: #ef4444;
+  --color-muted: #8b949e;
+  --color-dim: #6b7280;
 
   --font-sans: var(--font-geist), "Poppins", ui-sans-serif, system-ui, sans-serif;
 
@@ -180,4 +189,167 @@ body {
     transform: none;
     stroke-dasharray: none;
   }
+}
+
+/* ============================================================
+   Template reskin — glassmorphism, ambient background & effects
+   ============================================================ */
+.glass-card {
+  background-color: rgba(14, 17, 30, 0.75);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+}
+
+/* Fixed decorative layers that sit behind all content */
+.ambient-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    /* Top-right deep magenta/purple glow */
+    radial-gradient(circle at 85% 0%, rgba(120, 40, 200, 0.15) 0%, transparent 45%),
+    /* Center-right faint blue glow */
+    radial-gradient(circle at 95% 40%, rgba(59, 130, 246, 0.05) 0%, transparent 40%),
+    /* Left sidebar ambient glow */
+    radial-gradient(ellipse at 0% 50%, rgba(76, 29, 149, 0.12) 0%, transparent 35%);
+}
+
+/* Slow breathing purple glow in the background (grows + fades). */
+@keyframes bg-pulse {
+  0%,
+  100% {
+    opacity: 0.12;
+    transform: scale(0.85);
+  }
+  50% {
+    opacity: 0.4;
+    transform: scale(1.15);
+  }
+}
+
+.pulse-glow {
+  position: fixed;
+  z-index: 0;
+  pointer-events: none;
+  border-radius: 9999px;
+  filter: blur(90px);
+  background: radial-gradient(circle, rgba(139, 92, 246, 0.55) 0%, transparent 70%);
+  animation: bg-pulse 9s ease-in-out infinite;
+  will-change: opacity, transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pulse-glow {
+    animation: none;
+    opacity: 0.2;
+  }
+}
+
+.header-wave {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 100%;
+  height: 380px;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+  /* Radial fade anchored top-right: the wave stays bright in the corner and
+     dissolves toward the left and bottom, so no line ever ends on a hard edge. */
+  -webkit-mask-image: radial-gradient(95% 150% at 100% 0%, #000 32%, transparent 72%);
+  mask-image: radial-gradient(95% 150% at 100% 0%, #000 32%, transparent 72%);
+}
+
+.header-wave svg {
+  position: absolute;
+  top: 30px;
+  right: -100px;
+  width: 1200px;
+  height: 250px;
+}
+
+/* Glass pill buttons (date range / period / refresh) */
+.header-btn {
+  background: rgba(14, 17, 30, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  backdrop-filter: blur(10px);
+  transition: all 0.2s ease;
+}
+.header-btn:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+/* KPI card floor glows */
+.kpi-card {
+  position: relative;
+  overflow: hidden;
+}
+.kpi-card::before {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 50%;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.6;
+}
+.kpi-purple::before { background: linear-gradient(to top, rgba(168, 85, 247, 0.25), transparent); }
+.kpi-green::before { background: linear-gradient(to top, rgba(16, 185, 129, 0.25), transparent); }
+.kpi-orange::before { background: linear-gradient(to top, rgba(249, 115, 22, 0.25), transparent); }
+.kpi-blue::before { background: linear-gradient(to top, rgba(59, 130, 246, 0.25), transparent); }
+.kpi-content { position: relative; z-index: 1; }
+
+/* Icon chips */
+.icon-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+/* Neon icon glow — colour follows the chip's own accent (currentColor). */
+.icon-neon {
+  box-shadow: 0 0 14px currentColor, 0 0 5px currentColor;
+}
+.icon-neon .material-symbols-outlined {
+  text-shadow: 0 0 10px currentColor, 0 0 4px currentColor;
+}
+
+/* Sidebar glass surface */
+.sidebar-glass {
+  background: linear-gradient(180deg, rgba(8, 10, 20, 0.9) 0%, rgba(5, 7, 17, 0.95) 100%);
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+/* Sidebar active nav item (template style) */
+.nav-item-active {
+  background: linear-gradient(90deg, rgba(168, 85, 247, 0.15) 0%, transparent 100%);
+  border-left: 3px solid #a855f7;
+  border-radius: 0 8px 8px 0;
+  color: #d8b4fe;
+}
+
+/* Glowing progress bars */
+.progress-track {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 999px;
+  height: 3px;
+  width: 100%;
+}
+.progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  box-shadow: 0 0 8px currentColor, 0 0 16px currentColor;
+  filter: brightness(1.05);
+  transition: width 0.7s cubic-bezier(0.4, 0, 0.2, 1);
 }

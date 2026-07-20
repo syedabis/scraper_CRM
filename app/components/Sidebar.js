@@ -15,23 +15,27 @@ export default function Sidebar({ children, footerExtra }) {
   const pathname = usePathname();
 
   return (
-    <nav className="w-[280px] h-screen fixed left-0 top-0 bg-surface-container-low border-r border-outline-variant shadow-sm z-20 hidden md:flex flex-col gap-2 p-4">
-      <div className="mb-6">
-        <h1 className="text-headline-md font-bold text-primary mb-1">Cognos Sales CRM</h1>
-        <p className="text-body-md text-on-surface-variant">High-Velocity Sales</p>
+    <nav className="w-[280px] h-screen fixed left-0 top-0 sidebar-glass z-20 hidden md:flex flex-col gap-2 p-4">
+      <div className="mb-6 px-2 h-16 w-full">
+        <img
+          src="/logo-new-cropped.png"
+          alt="Cognos Sales CRM"
+          className="h-full w-full object-contain object-left"
+        />
       </div>
 
       <Link
         href="/data-entry"
-        className="w-full bg-primary text-on-primary py-2 px-4 rounded-lg text-label-md mb-6 hover:bg-primary-fixed transition-colors flex items-center justify-center gap-2"
+        className="w-full bg-brand-purple text-white py-2 px-4 rounded-lg text-label-md mb-6 hover:brightness-110 transition-all flex items-center justify-center gap-2"
+        style={{ boxShadow: "0 0 20px rgba(168,85,247,0.35)" }}
       >
-        <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>
+        <span className="material-symbols-outlined text-[18px]" style={{ fontVariationSettings: "'FILL' 1" }}>
           add
         </span>
         Add New Lead
       </Link>
 
-      <div className="flex-1 overflow-y-auto themed-scrollbar">
+      <div className="flex-1 overflow-y-auto themed-scrollbar -mr-2 pr-2">
         {children ?? (
           <ul className="space-y-1">
             {NAV_ITEMS.map((item) => {
@@ -40,13 +44,13 @@ export default function Sidebar({ children, footerExtra }) {
                 <li key={item.href}>
                   <Link
                     href={item.href}
-                    className={`flex items-center gap-3 rounded-lg px-4 py-2 transition-all duration-200 ${
+                    className={`flex items-center gap-3 px-4 py-3 font-medium transition-colors ${
                       active
-                        ? "bg-secondary-container text-on-secondary-container border-l-4 border-secondary shadow-sm"
-                        : "text-on-surface-variant hover:bg-surface-container-highest"
+                        ? "nav-item-active"
+                        : "text-muted hover:text-gray-200 hover:bg-white/5 rounded-r-lg border-l-[3px] border-transparent"
                     }`}
                   >
-                    <span className="material-symbols-outlined">{item.icon}</span>
+                    <span className="material-symbols-outlined text-[20px]">{item.icon}</span>
                     <span className="text-label-md">{item.label}</span>
                   </Link>
                 </li>
@@ -58,18 +62,14 @@ export default function Sidebar({ children, footerExtra }) {
 
       {footerExtra}
 
-      <div className="mt-auto border-t border-outline-variant pt-4">
-        <ul className="space-y-1">
-          <li>
-            <a
-              className="flex items-center gap-3 text-on-surface-variant hover:bg-surface-container-highest rounded-lg px-4 py-2 transition-all duration-200"
-              href="#"
-            >
-              <span className="material-symbols-outlined">help</span>
-              <span className="text-label-md">Support</span>
-            </a>
-          </li>
-        </ul>
+      <div className="mt-auto pt-2">
+        <button className="w-full glass-card p-2.5 flex items-center justify-between hover:bg-white/5 transition-colors text-muted text-label-sm font-medium cursor-pointer">
+          <span className="flex items-center gap-2">
+            <span className="material-symbols-outlined text-[18px] text-brand-purple">headset_mic</span>
+            Help &amp; Support
+          </span>
+          <span className="material-symbols-outlined text-[16px] text-dim">chevron_right</span>
+        </button>
       </div>
     </nav>
   );
