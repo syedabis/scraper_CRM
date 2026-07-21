@@ -86,9 +86,11 @@ const CONVERTED_STATUSES = ['Confirmation', 'Paid', 'Demo'];
 const TERMINAL_STATUSES = ['Client Lost', 'Confirmation', 'Paid', 'Demo'];
 const ATTEMPT_BUCKETS = ['1', '2', '3', '4+'];
 const ATTEMPT_MILESTONES = [1, 2, 3, 4];
-// Per-attempt "slots" live in their own sheet columns (G/H/I/J). fetch-leads
-// prepends the row number, so those land at these array indices.
-const ATTEMPT_SLOT_INDEX = { 1: 7, 2: 8, 3: 9, 4: 10 };
+// Column R holds Slot 1-4 pre-joined into one comma-separated summary
+// ("Status (date), Status (date), ..."). Used only for the Leads by
+// Attempts card, which needs the real chronological order of the calls —
+// slot columns are just fixed time-of-day windows, not attempt numbers.
+const ATTEMPT_SLOTS_SUMMARY_INDEX = 18;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 const ATTEMPTS_NEEDED_META = {
@@ -157,13 +159,46 @@ function emptyStateBreakdown() {
   }, {});
 }
 
-// Each slot cell is stored as "Status (timestamp)" — pull the status back out.
-function parseSlotStatus(raw) {
-  if (!raw) return '';
+// Each slot entry is stored as "Status (M/D/YYYY, H:MM:SS AM/PM)" — pull both
+// the status and the real timestamp back out. The timestamp is what lets us
+// tell real attempt order apart from slot column (time-of-day) position.
+function parseSlotEntry(raw) {
+  if (!raw) return null;
   const str = raw.toString().trim();
-  if (!str) return '';
+  if (!str) return null;
   const idx = str.indexOf(' (');
-  return (idx >= 0 ? str.slice(0, idx) : str).trim();
+  const status = (idx >= 0 ? str.slice(0, idx) : str).trim();
+  if (!status) return null;
+  const timeMatch = str.match(/\((\d{1,2})\/(\d{1,2})\/(\d{4}),?\s+(\d{1,2}):(\d{2}):(\d{2})\s*(AM|PM)\)/i);
+  let time = null;
+  if (timeMatch) {
+    const [, month, day, year, rawHour, minute, second, ampm] = timeMatch;
+    let hour = parseInt(rawHour, 10) % 12;
+    if (/pm/i.test(ampm)) hour += 12;
+    time = new Date(Number(year), Number(month) - 1, Number(day), hour, Number(minute), Number(second)).getTime();
+  }
+  return { status, time };
+}
+
+// Column R joins the 4 slot entries with plain commas, but each entry's own
+// timestamp already contains a comma, so a naive split(',') would cut entries
+// in half. Only split on commas that sit outside parentheses.
+function splitTopLevelCommas(str) {
+  const parts = [];
+  let depth = 0;
+  let current = '';
+  for (const ch of str) {
+    if (ch === '(') depth++;
+    else if (ch === ')') depth = Math.max(0, depth - 1);
+    if (ch === ',' && depth === 0) {
+      parts.push(current);
+      current = '';
+    } else {
+      current += ch;
+    }
+  }
+  parts.push(current);
+  return parts;
 }
 
 const INSTALLMENT_BATCHES = ['ep-40', 'ep-41', 'ep-42'];
@@ -312,11 +347,23 @@ function computeStatsForRange(leads, range) {
       });
     }
 
-    // Per-attempt outcome comes from that attempt's own slot column, not the
-    // lead's single overall status — so each column reflects that call.
-    ATTEMPT_MILESTONES.forEach((n) => {
-      const slotStatus = parseSlotStatus(lead[ATTEMPT_SLOT_INDEX[n]]);
-      if (slotStatus) slotBreakdown[n][classifyLeadState(slotStatus)]++;
+    // Leads by Attempts card only: column R gives all 4 slots pre-joined in
+    // one string. Slot columns are just fixed time-of-day windows (9-11am,
+    // 11am-1pm, 1-4pm, 4pm-9am), not attempt numbers, so pull the real
+    // timestamp out of every filled entry and sort chronologically — the
+    // earliest call is always "attempt 1", no matter which time-of-day slot
+    // it landed in.
+    const slotEntries = splitTopLevelCommas((lead[ATTEMPT_SLOTS_SUMMARY_INDEX] || '').toString())
+      .map((part) => parseSlotEntry(part))
+      .filter(Boolean);
+    slotEntries.sort((a, b) => {
+      if (a.time === null && b.time === null) return 0;
+      if (a.time === null) return 1;
+      if (b.time === null) return -1;
+      return a.time - b.time;
+    });
+    slotEntries.slice(0, 4).forEach((entry, idx) => {
+      slotBreakdown[idx + 1][classifyLeadState(entry.status)]++;
     });
 
     if (attempts < 1) return;
@@ -1039,12 +1086,13 @@ export default function Home() {
                             {LEAD_STATE_ORDER.filter((s) => s.key !== 'notCalled').map((s) => {
                               const c = slotStates[s.key];
                               const p = stats.totalLeads > 0 ? Math.round((c / stats.totalLeads) * 100) : 0;
+                              const isNotReceived = s.key === 'notReceived';
                               const valColor =
                                 s.tone === 'error' ? 'text-brand-red font-bold' : s.tone === 'secondary' ? 'text-brand-green font-bold' : 'text-gray-300';
                               return (
                                 <li key={s.key} className="flex justify-between gap-1">
-                                  <span className="truncate">{s.label}</span>
-                                  <span className={`whitespace-nowrap ${valColor}`}>
+                                  <span className={`truncate ${isNotReceived ? 'font-bold text-white' : ''}`}>{s.label}</span>
+                                  <span className={`whitespace-nowrap ${isNotReceived ? 'font-bold text-white' : valColor}`}>
                                     {c} · {p}%
                                   </span>
                                 </li>

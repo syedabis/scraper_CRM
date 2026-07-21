@@ -28,7 +28,7 @@ export async function GET(request) {
 
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId,
-      range: `${sheetName}!A:L`,
+      range: `${sheetName}!A:R`,
     });
 
     const rows = response.data.values || [];
@@ -38,9 +38,10 @@ export async function GET(request) {
 
     // Skip header row and include row numbers in the data
     const leadsWithRowNumbers = rows.slice(1).map((row, index) => {
-      // Pad the row to at least 12 columns (A-L)
+      // Pad the row to at least 18 columns (A-R) — R holds the combined,
+      // comma-separated Slot 1-4 summary used by the Leads by Attempts card.
       const paddedRow = [...row];
-      while (paddedRow.length < 12) {
+      while (paddedRow.length < 18) {
         paddedRow.push('');
       }
       
