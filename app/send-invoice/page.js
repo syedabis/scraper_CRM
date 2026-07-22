@@ -7,6 +7,9 @@ export default function SendInvoicePage() {
   const [name, setName] = useState("");
   const [amount, setAmount] = useState("");
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [screenshot, setScreenshot] = useState(null);
+  const [fileInputKey, setFileInputKey] = useState(0);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -14,6 +17,11 @@ export default function SendInvoicePage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (submitting) return;
+
+    if (!screenshot) {
+      setError("Please upload a screenshot of the payment before generating the receipt.");
+      return;
+    }
 
     setSubmitting(true);
     setError("");
@@ -24,6 +32,8 @@ export default function SendInvoicePage() {
       formData.append("name", name);
       formData.append("amount", amount);
       formData.append("email", email);
+      formData.append("phone", phone);
+      formData.append("screenshot", screenshot);
 
       const response = await fetch("/api/generate-receipt", {
         method: "POST",
@@ -35,8 +45,12 @@ export default function SendInvoicePage() {
         setName("");
         setAmount("");
         setEmail("");
+        setPhone("");
+        setScreenshot(null);
+        setFileInputKey((k) => k + 1);
       } else {
-        setError("Failed to generate receipt. Please try again.");
+        const data = await response.json().catch(() => null);
+        setError(data?.error || "Failed to generate receipt. Please try again.");
       }
     } catch (err) {
       setError("Failed to reach the invoicing service.");
@@ -91,6 +105,28 @@ export default function SendInvoicePage() {
             onChange={(e) => setEmail(e.target.value)}
             className="flex rounded-md border w-full h-12 !bg-white text-gray-900 placeholder:text-gray-500 border-gray-300 px-3 py-2 text-base focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
           />
+          <input
+            type="tel"
+            required
+            placeholder="Phone Number"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            className="flex rounded-md border w-full h-12 !bg-white text-gray-900 placeholder:text-gray-500 border-gray-300 px-3 py-2 text-base focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+          />
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+              Payment Screenshot <span className="text-red-500">*</span>
+            </label>
+            <input
+              key={fileInputKey}
+              type="file"
+              accept="image/*"
+              required
+              onChange={(e) => setScreenshot(e.target.files?.[0] || null)}
+              className="block w-full text-sm text-gray-600 border border-gray-300 rounded-md cursor-pointer file:mr-4 file:py-2.5 file:px-4 file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+            />
+          </div>
 
           <button
             type="submit"
