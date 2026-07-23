@@ -93,6 +93,44 @@ async function uploadPaymentScreenshot(screenshot, email) {
   return created.data.webViewLink;
 }
 
+async function getSheetGridId(spreadsheetId, sheetName) {
+  const meta = await sheets.spreadsheets.get({ spreadsheetId });
+  const sheet = (meta.data.sheets || []).find((s) => s.properties.title === sheetName);
+  if (!sheet) {
+    throw new Error(`Sheet "${sheetName}" not found in spreadsheet ${spreadsheetId}`);
+  }
+  return sheet.properties.sheetId;
+}
+
+// Formats column A as a real Date column (not just text that looks like
+// one), so it sorts/filters properly and any existing serial-number values
+// in that column immediately render as readable dates too.
+async function formatDateColumn(spreadsheetId, sheetName) {
+  const gridId = await getSheetGridId(spreadsheetId, sheetName);
+  await sheets.spreadsheets.batchUpdate({
+    spreadsheetId,
+    requestBody: {
+      requests: [
+        {
+          repeatCell: {
+            range: {
+              sheetId: gridId,
+              startColumnIndex: 0,
+              endColumnIndex: 1,
+            },
+            cell: {
+              userEnteredFormat: {
+                numberFormat: { type: 'DATE', pattern: 'yyyy-mm-dd' },
+              },
+            },
+            fields: 'userEnteredFormat.numberFormat',
+          },
+        },
+      ],
+    },
+  });
+}
+
 async function ensurePaymentLogHeaders(sheetId) {
   const existing = await sheets.spreadsheets.values.get({
     spreadsheetId: sheetId,
@@ -106,6 +144,7 @@ async function ensurePaymentLogHeaders(sheetId) {
       requestBody: { values: [PAYMENT_LOG_HEADERS] },
     });
   }
+  await formatDateColumn(sheetId, PAYMENT_LOG_SHEET_NAME);
 }
 
 async function logPaymentToSheet({ name, phone, email, amount, screenshotLink }) {
@@ -116,7 +155,10 @@ async function logPaymentToSheet({ name, phone, email, amount, screenshotLink })
 
   await ensurePaymentLogHeaders(sheetId);
 
-  const dateStr = new Date().toISOString().slice(0, 10);
+  // Leading apostrophe forces Sheets to store this as literal text instead
+  // of auto-converting it to a date serial number (which then displays as
+  // a raw integer unless the column happens to be formatted as a date).
+  const dateStr = `'${new Date().toISOString().slice(0, 10)}`;
   await sheets.spreadsheets.values.append({
     spreadsheetId: sheetId,
     range: `${PAYMENT_LOG_SHEET_NAME}!A:F`,
