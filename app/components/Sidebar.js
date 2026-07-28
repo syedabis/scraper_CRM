@@ -11,16 +11,20 @@ const NAV_ITEMS = [
   { href: "/admin", label: "Admin Panel", icon: "admin_panel_settings" },
 ];
 
-export default function Sidebar({ children, footerExtra }) {
+export default function Sidebar({ children, footerExtra, open = true }) {
   const pathname = usePathname();
 
   return (
-    <nav className="w-[280px] h-screen fixed left-0 top-0 sidebar-glass z-20 hidden md:flex flex-col gap-2 p-4">
-      <div className="mb-6 px-2 h-16 w-full">
+    <nav
+      className={`w-[280px] h-screen fixed left-0 top-0 sidebar-glass z-20 hidden md:flex flex-col gap-2 p-4 transition-transform duration-300 ${
+        open ? 'translate-x-0' : '-translate-x-full'
+      }`}
+    >
+      <div className="mb-6 px-2 h-11 w-full">
         <img
           src="/logo-new-cropped.png"
           alt="Cognos Sales CRM"
-          className="h-full w-full object-contain object-left"
+          className="h-full w-full object-contain object-center"
         />
       </div>
 

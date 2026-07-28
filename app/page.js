@@ -888,7 +888,7 @@ export default function Home() {
   ];
 
   return (
-    <AppShell title="Dashboard" hideTopNav>
+    <AppShell title="Dashboard" hideTopNav collapsibleSidebar>
       <div className="flex flex-col gap-5 text-[13px]">
         {/* Header */}
         <div className="flex flex-col md:flex-row md:justify-between md:items-start gap-4">

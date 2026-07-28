@@ -1,9 +1,15 @@
 "use client";
 
+import { useState } from "react";
 import Sidebar from "./Sidebar";
 import TopNav from "./TopNav";
 
-export default function AppShell({ title, search, sidebarExtra, sidebarFooter, hideTopNav, children }) {
+export default function AppShell({ title, search, sidebarExtra, sidebarFooter, hideTopNav, collapsibleSidebar, children }) {
+  // Only relevant when collapsibleSidebar is set (Dashboard only) — starts
+  // closed by default there; every other page keeps the sidebar always on.
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const isSidebarVisible = !collapsibleSidebar || sidebarOpen;
+
  return (
     <div className="relative min-h-screen bg-background text-on-background flex">
       {/* 1. Background Layer Container (Keeps everything absolutely positioned together out of the flex flow) */}
@@ -31,12 +37,28 @@ export default function AppShell({ title, search, sidebarExtra, sidebarFooter, h
       </div>
 
       {/* 2. Functional Layout Components (Now cleanly aligned by the flex container) */}
-      <Sidebar footerExtra={sidebarFooter} className="relative z-10">{sidebarExtra}</Sidebar>
-      
+      <Sidebar footerExtra={sidebarFooter} open={isSidebarVisible}>{sidebarExtra}</Sidebar>
+
+      {collapsibleSidebar && (
+        <button
+          onClick={() => setSidebarOpen((v) => !v)}
+          className={`hidden md:flex fixed top-1/2 -translate-y-1/2 z-30 w-6 h-16 items-center justify-center bg-[#12162a]/90 border border-white/10 backdrop-blur-md hover:bg-white/10 transition-all duration-300 rounded-r-lg ${
+            sidebarOpen ? 'left-[280px]' : 'left-0'
+          }`}
+          aria-label={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
+        >
+          <span className="material-symbols-outlined text-[16px] text-white">
+            {sidebarOpen ? 'chevron_left' : 'chevron_right'}
+          </span>
+        </button>
+      )}
+
       <div className="flex-1 flex flex-col relative z-10">
         {!hideTopNav && <TopNav title={title} search={search} />}
         <main
-          className={`w-full max-w-[1440px] mx-auto p-6 lg:p-8 overflow-y-auto themed-scrollbar ${hideTopNav ? '' : 'mt-16'} ml-0 md:ml-[280px]`}
+          className={`w-full max-w-[1440px] mx-auto p-6 lg:p-8 overflow-y-auto themed-scrollbar transition-all duration-300 ${hideTopNav ? '' : 'mt-16'} ${
+            isSidebarVisible ? 'ml-0 md:ml-[280px]' : 'ml-0'
+          }`}
         >
           {children}
         </main>
