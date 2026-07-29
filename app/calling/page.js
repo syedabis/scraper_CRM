@@ -1,7 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import AppShell from '../components/AppShell';
+import { getPendingActionsByStatus, getLeadsNeedingAttempt } from '../lib/pendingConfirmations';
+
+const ATTEMPT_ORDINALS = { 1: '1st', 2: '2nd', 3: '3rd', 4: '4th' };
 
 export default function Calling() {
   const [leads, setLeads] = useState([]);
@@ -21,32 +24,46 @@ export default function Calling() {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [pendingStatus, setPendingStatus] = useState(null);
+  const [statusDate, setStatusDate] = useState('');
+  const [showPendingModal, setShowPendingModal] = useState(false);
+  const [selectedAttemptNeeded, setSelectedAttemptNeeded] = useState(null);
+
+  const STATUSES_REQUIRING_DATE = ['Enrolled', 'Payment Pending (Confirmation)', 'Demo', 'Follow Up'];
+
+  // Old status text still sitting in the sheet from before the rename — kept
+  // here so filtering/counting by the new category names still surfaces it.
+  const STATUS_ALIASES = {
+    'Connected': ['Call Received'],
+    'No Answer': ['Not Received'],
+    'Follow Up': ['Call Later', 'Awaiting Response'],
+    'Registration': ['Form Filled'],
+    'Payment Pending (Confirmation)': ['Confirmation'],
+    'Enrolled': ['Paid'],
+    'Lost': ['Client Lost'],
+  };
 
   const leadCategories = [
     { name: 'New Leads', icon: 'group_add' },
-    { name: 'Call Received', icon: 'call_received' },
-    { name: 'Not Received', icon: 'call_missed' },
-    { name: 'Call Later', icon: 'schedule' },
-    { name: 'Client Lost', icon: 'person_off' },
-    { name: 'Confirmation', icon: 'verified' },
-    { name: 'Paid', icon: 'payments' },
+    { name: 'Connected', icon: 'call_received' },
+    { name: 'No Answer', icon: 'call_missed' },
+    { name: 'Follow Up', icon: 'schedule' },
+    { name: 'Registration', icon: 'assignment' },
+    { name: 'Payment Pending (Confirmation)', icon: 'verified' },
     { name: 'Demo', icon: 'present_to_all' },
-    { name: 'Form Filled', icon: 'assignment' },
-    { name: 'Group Lead', icon: 'groups' },
-    { name: 'Awaiting Response', icon: 'hourglass_top' },
+    { name: 'Enrolled', icon: 'payments' },
+    { name: 'Lost', icon: 'person_off' },
   ];
 
   const statusActions = [
-    { status: 'Call Received', label: 'Call Received', className: 'bg-[#568d66] text-white hover:brightness-110 border border-transparent' },
-    { status: 'Not Received', label: 'Not Received', className: 'bg-[#cb0b0a] text-white hover:brightness-110 border border-transparent' },
-    { status: 'Call Later', label: 'Please Call Later', className: 'bg-[#df8080] text-gray-900 hover:brightness-95 border border-transparent' },
-    { status: 'Client Lost', label: 'Client Lost', className: 'bg-[#8e0413] text-white hover:brightness-110 border border-transparent' },
-    { status: 'Confirmation', label: 'Confirmation', className: 'bg-[#2b6a4d] text-white hover:brightness-110 border border-transparent' },
-    { status: 'Paid', label: 'Paid', className: 'bg-[#004733] text-white hover:brightness-125 border border-transparent' },
-    { status: 'Demo', label: 'Demo', className: 'bg-[#a5c1ae] text-gray-900 hover:brightness-95 border border-transparent' },
-    { status: 'Form Filled', label: 'Form Filled', className: 'bg-[#f3f4f6] text-gray-900 hover:brightness-95 border border-transparent' },
-    { status: 'Group Lead', label: 'Group Lead', className: 'bg-[#dcdfe5] text-gray-900 hover:brightness-95 border border-transparent' },
-    { status: 'Awaiting Response', label: 'Awaiting Response', className: 'bg-[#ad080f] text-white hover:brightness-110 border border-transparent' },
+    { status: 'Connected', label: 'Connected', className: 'bg-[#F6992D] text-[#1f2937] hover:brightness-95 border border-transparent' },
+    { status: 'No Answer', label: 'No Answer', className: 'bg-[#ED6A5A] text-white hover:brightness-110 border border-transparent' },
+    { status: 'Follow Up', label: 'Follow Up', className: 'bg-[#A75A5A] text-white hover:brightness-110 border border-transparent' },
+    { status: 'Registration', label: 'Registration', className: 'bg-[#4C7680] text-white hover:brightness-110 border border-transparent' },
+    { status: 'Payment Pending (Confirmation)', label: 'Payment Pending (Confirmation)', className: 'bg-[#7DBA60] text-white hover:brightness-110 border border-transparent' },
+    { status: 'Demo', label: 'Demo', className: 'bg-[#38A3A5] text-white hover:brightness-110 border border-transparent' },
+    { status: 'Enrolled', label: 'Enrolled', className: 'bg-[#C2D11B] text-[#1f2937] hover:brightness-95 border border-transparent' },
+    { status: 'Lost', label: 'Lost', className: 'bg-[#60495A] text-white hover:brightness-125 border border-transparent' },
   ];
 
   // Function to get current Pakistani time slot
@@ -148,8 +165,9 @@ export default function Calling() {
     if (status === 'New Leads') {
       filtered = leadsToFilter.filter(lead => !lead[6] || lead[6].trim() === '');
     } else {
+      const matchNames = [status, ...(STATUS_ALIASES[status] || [])].map((s) => s.trim().toLowerCase());
       filtered = leadsToFilter.filter(
-        lead => (lead[6] || '').trim().toLowerCase() === status.trim().toLowerCase()
+        lead => matchNames.includes((lead[6] || '').trim().toLowerCase())
       );
     }
     setFilteredLeads(filtered);
@@ -158,7 +176,13 @@ export default function Calling() {
   };
 
   const handleStatusSelect = (status) => {
+    setSelectedAttemptNeeded(null);
     filterLeadsByStatus(status);
+  };
+
+  const handleAttemptNeededSelect = (n) => {
+    setSelectedStatus('');
+    setSelectedAttemptNeeded(n);
   };
 
   const handleEditClick = () => {
@@ -228,7 +252,36 @@ export default function Calling() {
 
   const currentLead = filteredLeads[currentIndex];
 
-  const handleStatusChange = async (status) => {
+  const pendingActionGroups = useMemo(() => getPendingActionsByStatus(leads), [leads]);
+  const pendingActionStatuses = Object.keys(pendingActionGroups);
+
+  // "Still needed" per attempt number (1st-4th) — mirrors the Dashboard's
+  // Leads by Attempts cards, but here clicking one shows the matching
+  // students directly instead of just a count.
+  const attemptsNeeded = useMemo(
+    () => [1, 2, 3, 4].map((n) => ({ n, leads: getLeadsNeedingAttempt(leads, n) })),
+    [leads]
+  );
+  const attemptsNeededLeads = selectedAttemptNeeded
+    ? attemptsNeeded.find((a) => a.n === selectedAttemptNeeded)?.leads || []
+    : [];
+  const allPendingItems = useMemo(
+    () =>
+      pendingActionStatuses.flatMap((statusName) =>
+        pendingActionGroups[statusName].map((item) => ({ ...item, status: statusName }))
+      ),
+    [pendingActionGroups, pendingActionStatuses]
+  );
+
+  // Auto-close the pending-actions modal if everything gets resolved while
+  // it's open (e.g. the last pending lead just got updated).
+  useEffect(() => {
+    if (showPendingModal && allPendingItems.length === 0) {
+      setShowPendingModal(false);
+    }
+  }, [allPendingItems, showPendingModal]);
+
+  const handleStatusChange = async (status, dateForStatus) => {
     if (!currentLead) {
       setTooltipMessage('No lead selected');
       setShowTooltip(true);
@@ -251,7 +304,8 @@ export default function Calling() {
         status,
         owner: selectedOwner,
         timeSlot: currentTimeSlot,
-        notes: notes.trim()
+        notes: notes.trim(),
+        ...(dateForStatus ? { statusDate: dateForStatus } : {}),
       };
       const response = await fetch('/api/update-lead-status', {
         method: 'POST',
@@ -273,6 +327,10 @@ export default function Calling() {
       // Clear notes after successful update
       setNotes('');
 
+      // Clear the date prompt, if it was open for this status
+      setPendingStatus(null);
+      setStatusDate('');
+
       // Re-fetch leads to get the latest slot column values
       await refreshLeads(selectedOwner);
 
@@ -290,6 +348,27 @@ export default function Calling() {
     } finally {
       setUpdatingStatus('');
     }
+  };
+
+  // Paid/Confirmation need a mandatory date first — open the prompt instead
+  // of updating immediately for those two statuses.
+  const handleStatusButtonClick = (status) => {
+    if (STATUSES_REQUIRING_DATE.includes(status)) {
+      setPendingStatus(status);
+      setStatusDate(new Date().toISOString().slice(0, 10));
+      return;
+    }
+    handleStatusChange(status);
+  };
+
+  const handleConfirmStatusDate = () => {
+    if (!pendingStatus || !statusDate) return;
+    handleStatusChange(pendingStatus, statusDate);
+  };
+
+  const handleCancelStatusDate = () => {
+    setPendingStatus(null);
+    setStatusDate('');
   };
 
   // Search function for phone numbers
@@ -344,7 +423,8 @@ export default function Calling() {
     if (name === 'New Leads') {
       return leads.filter(lead => !lead[6] || lead[6].trim() === '').length;
     }
-    return leads.filter(lead => lead[6] === name).length;
+    const matchNames = [name, ...(STATUS_ALIASES[name] || [])];
+    return leads.filter(lead => matchNames.includes(lead[6])).length;
   };
 
   const renderSlotHistory = (index, slotName, timeRange) => {
@@ -423,16 +503,16 @@ export default function Calling() {
             <li key={category.name}>
               <button
                 onClick={() => handleStatusSelect(category.name)}
-                className={`w-full flex items-center gap-3 rounded-lg px-4 py-2 transition-all duration-200 ${
+                className={`w-full flex items-start gap-3 rounded-lg px-4 py-2 transition-all duration-200 ${
                   active
                     ? 'bg-secondary-container text-on-secondary-container border-l-4 border-secondary shadow-sm'
                     : 'text-on-surface-variant hover:bg-surface-container-highest'
                 }`}
               >
-                <span className="material-symbols-outlined">{category.icon}</span>
-                <span className="text-label-md">{category.name}</span>
+                <span className="material-symbols-outlined shrink-0">{category.icon}</span>
+                <span className="text-label-md leading-tight text-left flex-1">{category.name}</span>
                 <span
-                  className={`ml-auto px-2 py-0.5 rounded-full text-label-sm ${
+                  className={`ml-auto shrink-0 px-2 py-0.5 rounded-full text-label-sm ${
                     active ? 'bg-secondary text-on-secondary' : 'bg-surface-variant'
                   }`}
                 >
@@ -444,6 +524,36 @@ export default function Calling() {
         })}
       </ul>
 
+      <div className="text-label-sm text-on-surface-variant uppercase tracking-wider mt-6 mb-2 px-4">
+        Still Needed
+      </div>
+      <ul className="space-y-1">
+        {attemptsNeeded.map(({ n, leads: needLeads }) => {
+          const active = selectedAttemptNeeded === n;
+          return (
+            <li key={n}>
+              <button
+                onClick={() => handleAttemptNeededSelect(n)}
+                className={`w-full flex items-start gap-3 rounded-lg px-4 py-2 transition-all duration-200 ${
+                  active
+                    ? 'bg-secondary-container text-on-secondary-container border-l-4 border-secondary shadow-sm'
+                    : 'text-on-surface-variant hover:bg-surface-container-highest'
+                }`}
+              >
+                <span className="material-symbols-outlined shrink-0">call</span>
+                <span className="text-label-md leading-tight text-left flex-1">{ATTEMPT_ORDINALS[n]} Attempt</span>
+                <span
+                  className={`ml-auto shrink-0 px-2 py-0.5 rounded-full text-label-sm ${
+                    active ? 'bg-secondary text-on-secondary' : 'bg-surface-variant'
+                  }`}
+                >
+                  {needLeads.length}
+                </span>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
     </div>
   );
 
@@ -455,8 +565,121 @@ export default function Calling() {
         </div>
       )}
 
+      {pendingStatus && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-surface-container rounded-xl border border-outline-variant p-6 w-full max-w-sm shadow-xl">
+            <h3 className="text-headline-sm font-semibold mb-1">{pendingStatus} Date</h3>
+            <p className="text-body-md text-on-surface-variant mb-4">
+              Enter the date for this {pendingStatus.toLowerCase()} before saving.
+            </p>
+            <input
+              type="date"
+              required
+              autoFocus
+              value={statusDate}
+              onChange={(e) => setStatusDate(e.target.value)}
+              className="w-full bg-surface-container-high border border-outline-variant rounded-lg p-3 text-body-md text-on-surface focus:border-primary focus:ring-1 focus:ring-primary transition-all outline-none mb-4"
+            />
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={handleCancelStatusDate}
+                className="px-4 py-2 rounded-md text-label-md bg-surface-container-highest text-on-surface-variant hover:bg-surface-bright"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmStatusDate}
+                disabled={!statusDate || updatingStatus === pendingStatus}
+                className="px-4 py-2 rounded-md text-label-md bg-secondary text-on-secondary hover:opacity-90 disabled:opacity-50"
+              >
+                {updatingStatus === pendingStatus ? 'Saving...' : 'Confirm'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {allPendingItems.length > 0 && (
+        <div className="mb-6">
+          <button
+            onClick={() => setShowPendingModal(true)}
+            className="bg-error-container border border-error text-on-error-container rounded-xl px-4 py-3 flex items-center gap-3 hover:brightness-110 transition-all"
+          >
+            <span className="material-symbols-outlined text-error">notifications_active</span>
+            <span className="text-left">
+              <span className="text-body-md font-semibold block">{allPendingItems.length} student{allPendingItems.length === 1 ? '' : 's'} to look up</span>
+              <span className="text-label-sm">{pendingActionStatuses.join(', ')}</span>
+            </span>
+          </button>
+        </div>
+      )}
+
+      {showPendingModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => setShowPendingModal(false)}
+        >
+          <div
+            className="bg-surface-container rounded-xl border border-outline-variant p-6 w-full max-w-lg max-h-[80vh] overflow-y-auto themed-scrollbar shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-headline-sm font-semibold">Pending follow-ups ({allPendingItems.length})</h3>
+              <button
+                onClick={() => setShowPendingModal(false)}
+                className="p-1 rounded-full hover:bg-surface-container-highest transition-colors duration-150"
+                aria-label="Close"
+              >
+                <span className="material-symbols-outlined text-[18px]">close</span>
+              </button>
+            </div>
+            <div className="space-y-2">
+              {allPendingItems.map((item) => (
+                <div
+                  key={item.rowNumber}
+                  className="bg-surface-container-high rounded-lg p-3 flex justify-between items-center gap-3"
+                >
+                  <div>
+                    <div className="text-body-md font-semibold text-on-surface">{item.name}</div>
+                    <div className="text-label-sm text-on-surface-variant">{item.phone || 'No phone'}</div>
+                  </div>
+                  <div className="text-label-sm text-on-surface-variant text-right">
+                    <div>{item.status}</div>
+                    <div>{item.date}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-col gap-6">
-        {loading ? (
+        {selectedAttemptNeeded ? (
+          <div className="bg-surface-container rounded-xl border border-outline-variant p-6">
+            <h2 className="text-headline-md font-bold text-on-surface mb-4">
+              {ATTEMPT_ORDINALS[selectedAttemptNeeded]} Attempt — Still Needed ({attemptsNeededLeads.length})
+            </h2>
+            {attemptsNeededLeads.length === 0 ? (
+              <p className="text-body-md text-on-surface-variant">Nobody needs this attempt right now.</p>
+            ) : (
+              <div className="space-y-2">
+                {attemptsNeededLeads.map((item) => (
+                  <div
+                    key={item.rowNumber}
+                    className="bg-surface-container-high rounded-lg p-3 flex justify-between items-center gap-3"
+                  >
+                    <div>
+                      <div className="text-body-md font-semibold text-on-surface">{item.name}</div>
+                      <div className="text-label-sm text-on-surface-variant">{item.phone || 'No phone'}</div>
+                    </div>
+                    <div className="text-label-sm text-on-surface-variant">{item.status}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : loading ? (
           <div className="text-center text-on-surface-variant py-16">Loading leads...</div>
         ) : filteredLeads.length === 0 ? (
           <div className="bg-surface-container rounded-xl border border-outline-variant p-12 text-center">
@@ -561,82 +784,79 @@ export default function Calling() {
               </div>
             </section>
 
-            {/* Update Status + Notes/Time Slot */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Update Status */}
-              <div className="bg-surface-container rounded-xl border border-outline-variant p-6 flex flex-col gap-4">
-                <div className="flex justify-between items-center mb-2">
-                  <h3 className="text-headline-sm font-semibold">Update Status</h3>
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={handlePrevious}
-                      className="p-1 rounded-full hover:bg-surface-container-highest transition-colors duration-150"
-                      aria-label="Previous lead"
-                    >
-                      <span className="material-symbols-outlined text-on-surface-variant text-[18px] block">chevron_left</span>
-                    </button>
-                    <span className="text-label-sm text-on-surface-variant whitespace-nowrap px-1">
-                      Lead {currentIndex + 1} of {filteredLeads.length}
-                    </span>
-                    <button
-                      onClick={handleNext}
-                      className="p-1 rounded-full hover:bg-surface-container-highest transition-colors duration-150"
-                      aria-label="Next lead"
-                    >
-                      <span className="material-symbols-outlined text-on-surface-variant text-[18px] block">chevron_right</span>
-                    </button>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  {statusActions.map((action) => (
-                    <button
-                      key={action.status}
-                      onClick={() => handleStatusChange(action.status)}
-                      disabled={updatingStatus === action.status}
-                      className={`py-2 px-3 rounded-lg text-label-md transition-colors text-center shadow-sm ${action.className} ${
-                        updatingStatus === action.status ? 'opacity-60 cursor-wait' : ''
-                      }`}
-                    >
-                      {updatingStatus === action.status ? 'Updating...' : action.label}
-                    </button>
-                  ))}
+            {/* Update Status — full width */}
+            <div className="bg-surface-container rounded-xl border border-outline-variant p-6 flex flex-col gap-4">
+              <div className="flex justify-between items-center mb-2">
+                <h3 className="text-headline-sm font-semibold">Update Status</h3>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={handlePrevious}
+                    className="p-1 rounded-full hover:bg-surface-container-highest transition-colors duration-150"
+                    aria-label="Previous lead"
+                  >
+                    <span className="material-symbols-outlined text-on-surface-variant text-[18px] block">chevron_left</span>
+                  </button>
+                  <span className="text-label-sm text-on-surface-variant whitespace-nowrap px-1">
+                    Lead {currentIndex + 1} of {filteredLeads.length}
+                  </span>
+                  <button
+                    onClick={handleNext}
+                    className="p-1 rounded-full hover:bg-surface-container-highest transition-colors duration-150"
+                    aria-label="Next lead"
+                  >
+                    <span className="material-symbols-outlined text-on-surface-variant text-[18px] block">chevron_right</span>
+                  </button>
                 </div>
               </div>
+              <div className="grid grid-cols-3 gap-2">
+                {statusActions.map((action) => (
+                  <button
+                    key={action.status}
+                    onClick={() => handleStatusButtonClick(action.status)}
+                    disabled={updatingStatus === action.status}
+                    className={`py-2 px-3 rounded-lg text-label-md transition-colors text-center shadow-sm ${action.className} ${
+                      updatingStatus === action.status ? 'opacity-60 cursor-wait' : ''
+                    }`}
+                  >
+                    {updatingStatus === action.status ? 'Updating...' : action.label}
+                  </button>
+                ))}
+              </div>
+            </div>
 
-              {/* Notes + Time Slot */}
-              <div className="flex flex-col gap-6 h-full">
-                <div className="bg-surface-container rounded-xl border border-outline-variant p-6 flex flex-col gap-4">
-                  <label className="text-headline-sm font-semibold flex items-center gap-2">
-                    <span className="material-symbols-outlined text-primary">edit_note</span>
-                    Notes
-                  </label>
-                  <textarea
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                    className="w-full bg-surface-container-high border border-outline-variant rounded-lg p-3 text-body-md text-on-surface focus:border-primary focus:ring-1 focus:ring-primary transition-all resize-none outline-none"
-                    placeholder="Enter any notes about this call or lead..."
-                    rows="2"
-                  />
+            {/* Notes + Call History — below Update Status */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="bg-surface-container rounded-xl border border-outline-variant p-6 flex flex-col gap-4">
+                <label className="text-headline-sm font-semibold flex items-center gap-2">
+                  <span className="material-symbols-outlined text-primary">edit_note</span>
+                  Notes
+                </label>
+                <textarea
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  className="w-full bg-surface-container-high border border-outline-variant rounded-lg p-3 text-body-md text-on-surface focus:border-primary focus:ring-1 focus:ring-primary transition-all resize-none outline-none"
+                  placeholder="Enter any notes about this call or lead..."
+                  rows="2"
+                />
+              </div>
+
+              <div className="bg-surface-container rounded-xl border border-outline-variant p-6 flex flex-col gap-3">
+                <h3 className="text-headline-sm font-semibold flex items-center gap-2">
+                  <span className="material-symbols-outlined text-primary">history</span>
+                  Call History
+                </h3>
+                <div className="grid grid-cols-2 gap-2">
+                  {renderSlotHistory(7, 'Slot 1', '9:00 AM - 11:00 AM')}
+                  {renderSlotHistory(8, 'Slot 2', '11:00 AM - 1:00 PM')}
+                  {renderSlotHistory(9, 'Slot 3', '1:00 PM - 4:00 PM')}
+                  {renderSlotHistory(10, 'Slot 4', '4:00 PM - 6:00 PM')}
                 </div>
-
-                <div className="bg-surface-container rounded-xl border border-outline-variant p-6 flex flex-col gap-3">
-                  <h3 className="text-headline-sm font-semibold flex items-center gap-2">
-                    <span className="material-symbols-outlined text-primary">history</span>
-                    Call History
-                  </h3>
-                  <div className="grid grid-cols-2 gap-2">
-                    {renderSlotHistory(7, 'Slot 1', '9:00 AM - 11:00 AM')}
-                    {renderSlotHistory(8, 'Slot 2', '11:00 AM - 1:00 PM')}
-                    {renderSlotHistory(9, 'Slot 3', '1:00 PM - 4:00 PM')}
-                    {renderSlotHistory(10, 'Slot 4', '4:00 PM - 6:00 PM')}
+                {currentLead?.[12] && (
+                  <div className="bg-surface-container-high rounded-lg p-3">
+                    <h4 className="text-label-sm text-on-surface-variant uppercase tracking-wider mb-1">Saved Notes</h4>
+                    <p className="text-body-md text-on-surface whitespace-pre-wrap">{currentLead[12]}</p>
                   </div>
-                  {currentLead?.[12] && (
-                    <div className="bg-surface-container-high rounded-lg p-3">
-                      <h4 className="text-label-sm text-on-surface-variant uppercase tracking-wider mb-1">Saved Notes</h4>
-                      <p className="text-body-md text-on-surface whitespace-pre-wrap">{currentLead[12]}</p>
-                    </div>
-                  )}
-                </div>
+                )}
               </div>
             </div>
 

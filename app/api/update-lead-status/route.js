@@ -35,16 +35,15 @@ const getStatusColor = (status) => {
 };
 
 const VALID_STATUSES = [
-  'Call Received',
-  'Not Received',
-  'Call Later',
-  'Client Lost',
-  'Confirmation',
-  'Paid',
+  'New Lead',
+  'Connected',
+  'No Answer',
+  'Follow Up',
+  'Registration',
+  'Payment Pending (Confirmation)',
   'Demo',
-  'Form Filled',
-  'Group Lead',
-  'Awaiting Response'
+  'Enrolled',
+  'Lost'
 ];
 
 // Cache for sheet IDs
@@ -84,8 +83,8 @@ async function getSheetId(sheetName) {
 
 export async function POST(request) {
   try {
-    const { rowIndex, status, owner, timeSlot, notes } = await request.json();
-    console.log('Received update request:', { rowIndex, status, owner, timeSlot, notes });
+    const { rowIndex, status, owner, timeSlot, notes, statusDate } = await request.json();
+    console.log('Received update request:', { rowIndex, status, owner, timeSlot, notes, statusDate });
 
     // Get current time for logging and time slot updates
     const currentTime = new Date().toLocaleString('en-US', {
@@ -119,6 +118,12 @@ export async function POST(request) {
     if (!VALID_STATUSES.includes(status)) {
       console.error('Invalid status:', status);
       return NextResponse.json({ error: 'Invalid status value' }, { status: 400 });
+    }
+
+    // Enrolled / Payment Pending (Confirmation) require a mandatory date, recorded in column N
+    if ((status === 'Enrolled' || status === 'Payment Pending (Confirmation)') && !statusDate) {
+      console.error('Status date is missing for status:', status);
+      return NextResponse.json({ error: 'A date is required for Enrolled/Payment Pending (Confirmation)' }, { status: 400 });
     }
 
     // Get the spreadsheet ID from environment variable
@@ -204,6 +209,31 @@ export async function POST(request) {
       } catch (error) {
         console.error('Error updating notes:', error);
         // Don't fail the entire request if notes update fails
+      }
+    }
+
+    // Update the Confirmation Date column (Column N). Confirmation writes the
+    // promised date as-is; Paid closes out any pending confirmation by
+    // overwriting it with "Closed (date)" instead.
+    if (statusDate) {
+      try {
+        const statusDateRange = `${owner.toLowerCase()}!N${rowIndex}`;
+        const statusDateValue = status === 'Enrolled' ? `Closed (${statusDate})` : statusDate;
+        console.log('Updating status date range:', statusDateRange, 'with value:', statusDateValue);
+
+        const statusDateResponse = await sheets.spreadsheets.values.update({
+          spreadsheetId,
+          range: statusDateRange,
+          valueInputOption: 'RAW',
+          resource: {
+            values: [[statusDateValue]]
+          }
+        });
+
+        console.log('Status date update response:', statusDateResponse.data);
+      } catch (error) {
+        console.error('Error updating status date:', error);
+        // Don't fail the entire request if the status date update fails
       }
     }
 

@@ -14,6 +14,7 @@ import {
 import { Line, Bar } from 'react-chartjs-2';
 import { UserButton } from '@clerk/nextjs';
 import AppShell from './components/AppShell';
+import { getPendingActionsByStatus } from './lib/pendingConfirmations';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Filler, Tooltip);
 
@@ -82,8 +83,11 @@ const neonBarPlugin = {
   },
 };
 
-const CONVERTED_STATUSES = ['Confirmation', 'Paid', 'Demo'];
-const TERMINAL_STATUSES = ['Client Lost', 'Confirmation', 'Paid', 'Demo'];
+// Includes both the current status vocabulary and the old text still sitting
+// on leads created before the rename, so historical data keeps classifying
+// correctly.
+const CONVERTED_STATUSES = ['Confirmation', 'Payment Pending (Confirmation)', 'Paid', 'Enrolled', 'Demo'];
+const TERMINAL_STATUSES = ['Client Lost', 'Lost', 'Confirmation', 'Payment Pending (Confirmation)', 'Paid', 'Enrolled', 'Demo'];
 const ATTEMPT_BUCKETS = ['1', '2', '3', '4+'];
 const ATTEMPT_MILESTONES = [1, 2, 3, 4];
 // Column R holds Slot 1-4 pre-joined into one comma-separated summary
@@ -116,16 +120,16 @@ const KPI_META = {
   blue: { floor: 'kpi-blue', color: C_BLUE, iconBg: 'bg-brand-blue/10 text-brand-blue border border-brand-blue/20' },
 };
 
-// Lead-state funnel for the per-attempt slot breakdown.
+// Lead-state funnel for the per-attempt slot breakdown. "Call Later" and
+// "Awaiting Response" both fold into "Follow Up" now, and "Group Lead" is
+// retired — old data with those statuses falls into "New Lead" by default.
 const LEAD_STATE_ORDER = [
-  { key: 'notCalled', label: 'Not Called Yet', tone: 'muted' },
-  { key: 'notReceived', label: 'Not Received', tone: 'muted' },
-  { key: 'callLater', label: 'Call Later', tone: 'muted' },
-  { key: 'awaiting', label: 'Awaiting Response', tone: 'muted' },
-  { key: 'callReceived', label: 'Call Received', tone: 'muted' },
-  { key: 'formFilled', label: 'Form Filled', tone: 'muted' },
-  { key: 'groupLead', label: 'Group Lead', tone: 'muted' },
-  { key: 'lost', label: 'Client Lost', tone: 'error' },
+  { key: 'notCalled', label: 'New Lead', tone: 'muted' },
+  { key: 'notReceived', label: 'No Answer', tone: 'muted' },
+  { key: 'callLater', label: 'Follow Up', tone: 'muted' },
+  { key: 'callReceived', label: 'Connected', tone: 'muted' },
+  { key: 'formFilled', label: 'Registration', tone: 'muted' },
+  { key: 'lost', label: 'Lost', tone: 'error' },
   { key: 'converted', label: 'Converted', tone: 'secondary' },
 ];
 
@@ -134,19 +138,23 @@ function classifyLeadState(status) {
   if (CONVERTED_STATUSES.includes(status)) return 'converted';
   switch (status) {
     case 'Client Lost':
+    case 'Lost':
       return 'lost';
     case 'Not Received':
+    case 'No Answer':
       return 'notReceived';
     case 'Call Later':
-      return 'callLater';
     case 'Awaiting Response':
-      return 'awaiting';
+    case 'Follow Up':
+      return 'callLater';
     case 'Call Received':
+    case 'Connected':
       return 'callReceived';
     case 'Form Filled':
+    case 'Registration':
       return 'formFilled';
-    case 'Group Lead':
-      return 'groupLead';
+    case 'New Lead':
+      return 'notCalled';
     default:
       return 'notCalled';
   }
@@ -335,8 +343,8 @@ function computeStatsForRange(leads, range) {
 
   relevant.forEach((lead) => {
     const status = (lead[6] || '').trim();
-    if (status === 'Confirmation') confirmations++;
-    if (status === 'Paid') paid++;
+    if (status === 'Confirmation' || status === 'Payment Pending (Confirmation)') confirmations++;
+    if (status === 'Paid' || status === 'Enrolled') paid++;
     if (status === 'Demo') demo++;
 
     const attempts = parseInt(lead[11], 10) || 0;
@@ -436,8 +444,8 @@ function buildTimeSeries(leads, range) {
     if (i < 0 || i >= buckets.length) return;
     buckets[i].total++;
     if (CONVERTED_STATUSES.includes(r.status)) buckets[i].converted++;
-    if (r.status === 'Confirmation') buckets[i].confirmations++;
-    if (r.status === 'Paid') buckets[i].paid++;
+    if (r.status === 'Confirmation' || r.status === 'Payment Pending (Confirmation)') buckets[i].confirmations++;
+    if (r.status === 'Paid' || r.status === 'Enrolled') buckets[i].paid++;
     if (r.status === 'Demo') buckets[i].demo++;
   });
 
@@ -787,6 +795,7 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [allLeads, setAllLeads] = useState([]);
+  const [showPendingModal, setShowPendingModal] = useState(false);
   const [installmentStats, setInstallmentStats] = useState({
     pending: 0,
     paid: 0,
@@ -826,6 +835,22 @@ export default function Home() {
     loadData();
   }, [loadData]);
 
+  const pendingActionGroups = useMemo(() => getPendingActionsByStatus(allLeads), [allLeads]);
+  const pendingActionStatuses = Object.keys(pendingActionGroups);
+  const allPendingItems = useMemo(
+    () =>
+      pendingActionStatuses.flatMap((statusName) =>
+        pendingActionGroups[statusName].map((item) => ({ ...item, status: statusName }))
+      ),
+    [pendingActionGroups, pendingActionStatuses]
+  );
+
+  useEffect(() => {
+    if (showPendingModal && allPendingItems.length === 0) {
+      setShowPendingModal(false);
+    }
+  }, [allPendingItems, showPendingModal]);
+
   const activeRange = useMemo(() => {
     if (preset === 'custom') {
       const start = customRange.start ? parseLeadDate(customRange.start) : null;
@@ -862,7 +887,7 @@ export default function Home() {
   const topCards = [
     { label: 'Total Leads', value: stats.totalLeads, delta: heroDelta, icon: 'group', accent: 'purple', series: timeSeries.points.map((p) => p.total) },
     {
-      label: 'Confirmations',
+      label: 'Payment Pending',
       value: stats.confirmations,
       delta: previousStats ? calcDelta(stats.confirmations, previousStats.confirmations) : null,
       icon: 'verified',
@@ -870,7 +895,7 @@ export default function Home() {
       series: timeSeries.points.map((p) => p.confirmations),
     },
     {
-      label: 'Paid',
+      label: 'Enrolled',
       value: stats.paid,
       delta: previousStats ? calcDelta(stats.paid, previousStats.paid) : null,
       icon: 'payments',
@@ -953,6 +978,67 @@ export default function Home() {
 
         {error && (
           <div className="glass-card border-brand-red/30 text-brand-red p-4 text-center text-xs">{error}</div>
+        )}
+
+        {allPendingItems.length > 0 && (
+          <div>
+            <button
+              onClick={() => setShowPendingModal(true)}
+              className="glass-card p-3 flex items-center gap-3 hover:brightness-110 transition-all text-left"
+              style={{ borderColor: `${C_ORANGE}4D` }}
+            >
+              <span
+                className="icon-neon w-8 h-8 shrink-0 rounded-md flex items-center justify-center border"
+                style={{ backgroundColor: `${C_ORANGE}1A`, color: C_ORANGE, borderColor: `${C_ORANGE}33` }}
+              >
+                <span className="material-symbols-outlined text-[16px]">notifications_active</span>
+              </span>
+              <span className="text-xs">
+                <span className="font-semibold text-white block">{allPendingItems.length} student{allPendingItems.length === 1 ? '' : 's'} to look up</span>
+                <span className="text-muted">{pendingActionStatuses.join(', ')}</span>
+              </span>
+            </button>
+          </div>
+        )}
+
+        {showPendingModal && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+            onClick={() => setShowPendingModal(false)}
+          >
+            <div
+              className="glass-card p-6 w-full max-w-lg max-h-[80vh] overflow-y-auto themed-scrollbar"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-sm font-semibold text-white">Pending follow-ups ({allPendingItems.length})</h3>
+                <button
+                  onClick={() => setShowPendingModal(false)}
+                  className="p-1 rounded-full hover:bg-white/10 transition-colors"
+                  aria-label="Close"
+                >
+                  <span className="material-symbols-outlined text-[18px] text-muted">close</span>
+                </button>
+              </div>
+              <div className="space-y-2">
+                {allPendingItems.map((item) => (
+                  <div
+                    key={item.rowNumber}
+                    className="bg-black/20 border border-white/5 rounded-lg p-3 flex justify-between items-center gap-3 text-xs"
+                  >
+                    <div>
+                      <div className="font-semibold text-white">{item.name}</div>
+                      <div className="text-muted">{item.phone || 'No phone'}</div>
+                    </div>
+                    <div className="text-muted text-right">
+                      <div>{item.status}</div>
+                      <div>{item.date}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
         )}
 
         {loading ? (

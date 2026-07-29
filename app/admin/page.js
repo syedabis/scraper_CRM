@@ -33,14 +33,14 @@ export default function AdminPanel() {
     const agentLeads = allLeads.filter((lead) => lead[lead.length - 1] === agent);
     const totalLeads = agentLeads.length;
     const newLeads = agentLeads.filter((lead) => !lead[6] || lead[6].trim() === "").length;
-    const callReceived = agentLeads.filter((lead) => lead[6] === "Call Received").length;
-    const notReceived = agentLeads.filter((lead) => lead[6] === "Not Received").length;
-    const callLater = agentLeads.filter((lead) => lead[6] === "Call Later").length;
-    const paid = agentLeads.filter((lead) => lead[6] === "Paid").length;
+    const callReceived = agentLeads.filter((lead) => lead[6] === "Call Received" || lead[6] === "Connected").length;
+    const notReceived = agentLeads.filter((lead) => lead[6] === "Not Received" || lead[6] === "No Answer").length;
+    const callLater = agentLeads.filter((lead) => lead[6] === "Call Later" || lead[6] === "Awaiting Response" || lead[6] === "Follow Up").length;
+    const paid = agentLeads.filter((lead) => lead[6] === "Paid" || lead[6] === "Enrolled").length;
     const demo = agentLeads.filter((lead) => lead[6] === "Demo").length;
-    const formFilled = agentLeads.filter((lead) => lead[6] === "Form Filled").length;
-    const clientLost = agentLeads.filter((lead) => lead[6] === "Client Lost").length;
-    const confirmation = agentLeads.filter((lead) => lead[6] === "Confirmation").length;
+    const formFilled = agentLeads.filter((lead) => lead[6] === "Form Filled" || lead[6] === "Registration").length;
+    const clientLost = agentLeads.filter((lead) => lead[6] === "Client Lost" || lead[6] === "Lost").length;
+    const confirmation = agentLeads.filter((lead) => lead[6] === "Confirmation" || lead[6] === "Payment Pending (Confirmation)").length;
     const conversionRate = totalLeads > 0 ? Math.round((paid / totalLeads) * 100) : 0;
     return {
       totalLeads,
@@ -196,18 +196,18 @@ export default function AdminPanel() {
                     </div>
                     <div className="bg-secondary-container p-4 rounded-lg text-center">
                       <div className="text-on-secondary-container text-2xl font-bold">{stats.paid}</div>
-                      <div className="text-on-secondary-container text-label-sm">Paid Leads</div>
+                      <div className="text-on-secondary-container text-label-sm">Enrolled Leads</div>
                     </div>
                   </div>
                   <div className="space-y-3 text-body-md">
                     <div className="flex justify-between"><span className="text-on-surface-variant">New Leads:</span><span className="text-primary font-bold">{stats.newLeads}</span></div>
-                    <div className="flex justify-between"><span className="text-on-surface-variant">Call Received:</span><span className="text-secondary font-bold">{stats.callReceived}</span></div>
-                    <div className="flex justify-between"><span className="text-on-surface-variant">Not Received:</span><span className="text-error font-bold">{stats.notReceived}</span></div>
-                    <div className="flex justify-between"><span className="text-on-surface-variant">Call Later:</span><span className="text-tertiary font-bold">{stats.callLater}</span></div>
-                    <div className="flex justify-between"><span className="text-on-surface-variant">Client Lost:</span><span className="text-on-surface font-bold">{stats.clientLost}</span></div>
-                    <div className="flex justify-between"><span className="text-on-surface-variant">Confirmation:</span><span className="text-primary font-bold">{stats.confirmation}</span></div>
+                    <div className="flex justify-between"><span className="text-on-surface-variant">Connected:</span><span className="text-secondary font-bold">{stats.callReceived}</span></div>
+                    <div className="flex justify-between"><span className="text-on-surface-variant">No Answer:</span><span className="text-error font-bold">{stats.notReceived}</span></div>
+                    <div className="flex justify-between"><span className="text-on-surface-variant">Follow Up:</span><span className="text-tertiary font-bold">{stats.callLater}</span></div>
+                    <div className="flex justify-between"><span className="text-on-surface-variant">Lost:</span><span className="text-on-surface font-bold">{stats.clientLost}</span></div>
+                    <div className="flex justify-between"><span className="text-on-surface-variant">Payment Pending (Confirmation):</span><span className="text-primary font-bold">{stats.confirmation}</span></div>
                     <div className="flex justify-between"><span className="text-on-surface-variant">Demo:</span><span className="text-primary font-bold">{stats.demo}</span></div>
-                    <div className="flex justify-between"><span className="text-on-surface-variant">Form Filled:</span><span className="text-secondary font-bold">{stats.formFilled}</span></div>
+                    <div className="flex justify-between"><span className="text-on-surface-variant">Registration:</span><span className="text-secondary font-bold">{stats.formFilled}</span></div>
                     <div className="flex justify-between"><span className="text-on-surface-variant">Conversion Rate:</span><span className="text-secondary font-bold">{stats.conversionRate}%</span></div>
                   </div>
                 </div>
