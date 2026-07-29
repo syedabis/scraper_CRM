@@ -68,18 +68,23 @@ function countFilledSlots(lead) {
 
 // Leads that still need their Nth call attempt — active (non-terminal)
 // status and fewer than N attempts made so far. Mirrors the Dashboard's
-// "still needed" count, but also returns the actual matching leads.
+// "still needed" count. Returns the raw lead rows (full row data), so
+// callers can page through them with the same detail view used elsewhere.
+export function filterLeadsNeedingAttempt(leads, n) {
+  return (leads || []).filter((lead) => {
+    const status = (lead[6] || '').trim();
+    if (TERMINAL_STATUSES.includes(status)) return false;
+    return countFilledSlots(lead) < n;
+  });
+}
+
+// Same filter, condensed to just name/phone/status — for places that only
+// need a summary (e.g. a count badge), not the full row.
 export function getLeadsNeedingAttempt(leads, n) {
-  return (leads || [])
-    .filter((lead) => {
-      const status = (lead[6] || '').trim();
-      if (TERMINAL_STATUSES.includes(status)) return false;
-      return countFilledSlots(lead) < n;
-    })
-    .map((lead) => ({
-      rowNumber: lead[0],
-      name: lead[3] || 'Unknown',
-      phone: lead[5] || '',
-      status: (lead[6] || '').trim() || 'New Lead',
-    }));
+  return filterLeadsNeedingAttempt(leads, n).map((lead) => ({
+    rowNumber: lead[0],
+    name: lead[3] || 'Unknown',
+    phone: lead[5] || '',
+    status: (lead[6] || '').trim() || 'New Lead',
+  }));
 }

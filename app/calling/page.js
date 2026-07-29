@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import AppShell from '../components/AppShell';
-import { getPendingActionsByStatus, getLeadsNeedingAttempt } from '../lib/pendingConfirmations';
+import { getPendingActionsByStatus, filterLeadsNeedingAttempt } from '../lib/pendingConfirmations';
 
 const ATTEMPT_ORDINALS = { 1: '1st', 2: '2nd', 3: '3rd', 4: '4th' };
 
@@ -143,9 +143,13 @@ export default function Calling() {
       const data = await response.json();
       setLeads(data);
 
-      // Preserve current status filter and find the same lead
+      // Preserve current position within whichever filter was active
       const currentRowNumber = currentLead?.[0];
-      filterLeadsByStatus(selectedStatus, data);
+      if (selectedAttemptNeeded) {
+        setFilteredLeads(filterLeadsNeedingAttempt(data, selectedAttemptNeeded));
+      } else {
+        filterLeadsByStatus(selectedStatus, data);
+      }
 
       // Find and set the same lead position
       if (currentRowNumber) {
@@ -183,6 +187,8 @@ export default function Calling() {
   const handleAttemptNeededSelect = (n) => {
     setSelectedStatus('');
     setSelectedAttemptNeeded(n);
+    setFilteredLeads(filterLeadsNeedingAttempt(leads, n));
+    setCurrentIndex(0);
   };
 
   const handleEditClick = () => {
@@ -256,15 +262,12 @@ export default function Calling() {
   const pendingActionStatuses = Object.keys(pendingActionGroups);
 
   // "Still needed" per attempt number (1st-4th) — mirrors the Dashboard's
-  // Leads by Attempts cards, but here clicking one shows the matching
-  // students directly instead of just a count.
-  const attemptsNeeded = useMemo(
-    () => [1, 2, 3, 4].map((n) => ({ n, leads: getLeadsNeedingAttempt(leads, n) })),
+  // Leads by Attempts cards. Clicking one pages through the matching leads
+  // using the same detail view as any other category.
+  const attemptsNeededCounts = useMemo(
+    () => [1, 2, 3, 4].map((n) => ({ n, count: filterLeadsNeedingAttempt(leads, n).length })),
     [leads]
   );
-  const attemptsNeededLeads = selectedAttemptNeeded
-    ? attemptsNeeded.find((a) => a.n === selectedAttemptNeeded)?.leads || []
-    : [];
   const allPendingItems = useMemo(
     () =>
       pendingActionStatuses.flatMap((statusName) =>
@@ -528,7 +531,7 @@ export default function Calling() {
         Still Needed
       </div>
       <ul className="space-y-1">
-        {attemptsNeeded.map(({ n, leads: needLeads }) => {
+        {attemptsNeededCounts.map(({ n, count }) => {
           const active = selectedAttemptNeeded === n;
           return (
             <li key={n}>
@@ -547,7 +550,7 @@ export default function Calling() {
                     active ? 'bg-secondary text-on-secondary' : 'bg-surface-variant'
                   }`}
                 >
-                  {needLeads.length}
+                  {count}
                 </span>
               </button>
             </li>
@@ -655,37 +658,15 @@ export default function Calling() {
       )}
 
       <div className="flex flex-col gap-6">
-        {selectedAttemptNeeded ? (
-          <div className="bg-surface-container rounded-xl border border-outline-variant p-6">
-            <h2 className="text-headline-md font-bold text-on-surface mb-4">
-              {ATTEMPT_ORDINALS[selectedAttemptNeeded]} Attempt — Still Needed ({attemptsNeededLeads.length})
-            </h2>
-            {attemptsNeededLeads.length === 0 ? (
-              <p className="text-body-md text-on-surface-variant">Nobody needs this attempt right now.</p>
-            ) : (
-              <div className="space-y-2">
-                {attemptsNeededLeads.map((item) => (
-                  <div
-                    key={item.rowNumber}
-                    className="bg-surface-container-high rounded-lg p-3 flex justify-between items-center gap-3"
-                  >
-                    <div>
-                      <div className="text-body-md font-semibold text-on-surface">{item.name}</div>
-                      <div className="text-label-sm text-on-surface-variant">{item.phone || 'No phone'}</div>
-                    </div>
-                    <div className="text-label-sm text-on-surface-variant">{item.status}</div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        ) : loading ? (
+        {loading ? (
           <div className="text-center text-on-surface-variant py-16">Loading leads...</div>
         ) : filteredLeads.length === 0 ? (
           <div className="bg-surface-container rounded-xl border border-outline-variant p-12 text-center">
             <h2 className="text-headline-md font-bold text-on-surface mb-2">No leads found</h2>
             <p className="text-body-md text-on-surface-variant">
-              {selectedStatus === 'New Leads'
+              {selectedAttemptNeeded
+                ? `Nobody needs their ${ATTEMPT_ORDINALS[selectedAttemptNeeded]} attempt right now.`
+                : selectedStatus === 'New Leads'
                 ? 'No new leads available.'
                 : selectedStatus
                 ? `No leads with status "${selectedStatus}" found.`
