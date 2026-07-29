@@ -66,15 +66,17 @@ function countFilledSlots(lead) {
   return SLOT_INDICES.filter((idx) => (lead[idx] || '').toString().trim() !== '').length;
 }
 
-// Leads that still need their Nth call attempt — active (non-terminal)
-// status and fewer than N attempts made so far. Mirrors the Dashboard's
-// "still needed" count. Returns the raw lead rows (full row data), so
-// callers can page through them with the same detail view used elsewhere.
+// Leads exactly ready for their Nth call attempt — active (non-terminal)
+// status and exactly N-1 attempts made so far (1st Attempt = nobody's
+// called yet, 2nd Attempt = only the 1st call is done, etc). This is a
+// precise stage match, not "N or fewer attempts so far". Returns the raw
+// lead rows (full row data), so callers can page through them with the
+// same detail view used elsewhere.
 export function filterLeadsNeedingAttempt(leads, n) {
   return (leads || []).filter((lead) => {
     const status = (lead[6] || '').trim();
     if (TERMINAL_STATUSES.includes(status)) return false;
-    return countFilledSlots(lead) < n;
+    return countFilledSlots(lead) === n - 1;
   });
 }
 
