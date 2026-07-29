@@ -1052,7 +1052,7 @@ export default function Home() {
                 return (
                   <div
                     key={card.label}
-                    className={`glass-card kpi-card ${meta.floor} p-4 h-[128px] flex flex-col justify-between animate-fade-up`}
+                    className={`glass-card kpi-card ${meta.floor} p-4 h-[128px] flex flex-col justify-between animate-fade-up min-w-0`}
                     style={{ animationDelay: `${i * 70}ms` }}
                   >
                     <div className="kpi-content flex items-start gap-3">
@@ -1080,7 +1080,7 @@ export default function Home() {
             {/* ROW 2 — main charts */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
               {/* Leads Overview */}
-              <div className="glass-card lg:col-span-2 p-5 flex flex-col h-[340px] animate-fade-up" style={{ animationDelay: '120ms' }}>
+              <div className="glass-card lg:col-span-2 p-5 flex flex-col h-[340px] animate-fade-up min-w-0" style={{ animationDelay: '120ms' }}>
                 <div className="flex justify-between items-start mb-4">
                   <div>
                     <h3 className="text-sm font-semibold text-white mb-0.5">Leads Overview</h3>
@@ -1110,8 +1110,8 @@ export default function Home() {
               </div>
 
               {/* Conversion by Attempts */}
-              <div className="glass-card p-5 flex flex-col h-[340px] animate-fade-up" style={{ animationDelay: '190ms' }}>
-                <div className="flex justify-between items-start mb-4">
+              <div className="glass-card p-5 flex flex-col h-[340px] animate-fade-up min-w-0" style={{ animationDelay: '190ms' }}>
+                <div className="flex flex-wrap justify-between items-start gap-2 mb-4">
                   <h3 className="text-sm font-semibold text-white">Conversion by Attempts</h3>
                   <div className="grid grid-cols-2 gap-x-2.5 gap-y-0.5 text-[9px] text-muted">
                     {attemptConversionRates.map((r) => (

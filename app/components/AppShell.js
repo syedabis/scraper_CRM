@@ -53,14 +53,14 @@ export default function AppShell({ title, search, sidebarExtra, sidebarFooter, h
         </button>
       )}
 
-      <div className="flex-1 flex flex-col relative z-10">
+      <div className="flex-1 flex flex-col relative z-10 min-w-0">
         {!hideTopNav && <TopNav title={title} search={search} />}
         <main
-          className={`w-full max-w-[1440px] mx-auto p-6 lg:p-8 overflow-y-auto themed-scrollbar transition-all duration-300 ${hideTopNav ? '' : 'mt-16'} ${
-            isSidebarVisible ? 'ml-0 md:ml-[280px]' : 'ml-0'
+          className={`overflow-y-auto overflow-x-hidden themed-scrollbar transition-all duration-300 ${hideTopNav ? '' : 'mt-16'} ${
+            isSidebarVisible ? 'pl-0 md:pl-[280px]' : 'pl-0'
           }`}
         >
-          {children}
+          <div className="max-w-[1440px] mx-auto p-6 lg:p-8">{children}</div>
         </main>
       </div>
     </div>
