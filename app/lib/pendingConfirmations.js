@@ -66,6 +66,12 @@ function countFilledSlots(lead) {
   return SLOT_INDICES.filter((idx) => (lead[idx] || '').toString().trim() !== '').length;
 }
 
+// The 4th Attempt tab is narrower than the others — only leads who are
+// still just unanswered/unresolved (No Answer or Connected) belong there.
+// Anyone already on a more specific track (Follow Up, Registration, etc.)
+// is excluded from the 4th attempt tab even if they'd otherwise qualify.
+const ATTEMPT_4_ALLOWED_STATUSES = ['No Answer', 'Connected'];
+
 // Leads exactly ready for their Nth call attempt — active (non-terminal)
 // status and exactly N-1 attempts made so far (1st Attempt = nobody's
 // called yet, 2nd Attempt = only the 1st call is done, etc). This is a
@@ -76,6 +82,7 @@ export function filterLeadsNeedingAttempt(leads, n) {
   return (leads || []).filter((lead) => {
     const status = (lead[6] || '').trim();
     if (TERMINAL_STATUSES.includes(status)) return false;
+    if (n === 4 && !ATTEMPT_4_ALLOWED_STATUSES.includes(status)) return false;
     return countFilledSlots(lead) === n - 1;
   });
 }
