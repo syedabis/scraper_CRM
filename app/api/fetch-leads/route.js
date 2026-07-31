@@ -37,20 +37,24 @@ export async function GET(request) {
     }
 
     // Skip header row and include row numbers in the data
-    const leadsWithRowNumbers = rows.slice(1).map((row, index) => {
-      // Pad the row to at least 18 columns (A-R) — R holds the combined,
-      // comma-separated Slot 1-4 summary used by the Leads by Attempts card.
-      const paddedRow = [...row];
-      while (paddedRow.length < 18) {
-        paddedRow.push('');
-      }
-      
-      // Get the Number of Attempts from column K (index 10)
-      const numberOfAttempts = paddedRow[10] || 0;
-      
-      // Add row number as the first element, then padded row
-      return [index + 2, ...paddedRow];
-    });
+    const leadsWithRowNumbers = rows
+      .slice(1)
+      .map((row, index) => {
+        // Pad the row to at least 18 columns (A-R) — R holds the combined,
+        // comma-separated Slot 1-4 summary used by the Leads by Attempts card.
+        const paddedRow = [...row];
+        while (paddedRow.length < 18) {
+          paddedRow.push('');
+        }
+
+        // Add row number as the first element, then padded row
+        return [index + 2, ...paddedRow];
+      })
+      // A row can have data in column R (e.g. a formula like
+      // "=CONCATENATE(G,H,I,J)" filled down far past the real data,
+      // producing just ",,," for otherwise-empty rows) without being a real
+      // lead. Only count rows that actually have a date, name, or status.
+      .filter((row) => (row[1] || row[3] || row[6] || '').toString().trim() !== '');
 
     return NextResponse.json(leadsWithRowNumbers);
   } catch (error) {

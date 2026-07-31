@@ -174,17 +174,23 @@ function parseSlotEntry(raw) {
   if (!raw) return null;
   const str = raw.toString().trim();
   if (!str) return null;
-  const idx = str.indexOf(' (');
-  const status = (idx >= 0 ? str.slice(0, idx) : str).trim();
-  if (!status) return null;
+  // Find the timestamp first — it has an unambiguous pattern — then treat
+  // everything before it as the status. Some status names (e.g. "Payment
+  // Pending (Confirmation)") contain their own parentheses, so cutting at
+  // the first "(" instead would truncate those status names incorrectly.
   const timeMatch = str.match(/\((\d{1,2})\/(\d{1,2})\/(\d{4}),?\s+(\d{1,2}):(\d{2}):(\d{2})\s*(AM|PM)\)/i);
+  let status;
   let time = null;
   if (timeMatch) {
+    status = str.slice(0, timeMatch.index).trim();
     const [, month, day, year, rawHour, minute, second, ampm] = timeMatch;
     let hour = parseInt(rawHour, 10) % 12;
     if (/pm/i.test(ampm)) hour += 12;
     time = new Date(Number(year), Number(month) - 1, Number(day), hour, Number(minute), Number(second)).getTime();
+  } else {
+    status = str;
   }
+  if (!status) return null;
   return { status, time };
 }
 
