@@ -436,6 +436,30 @@ export default function Calling() {
     return leads.filter(lead => matchNames.includes(lead[6])).length;
   };
 
+  // Each slot cell (G-J) carries its own "Status (M/D/YYYY, h:mm:ss AM/PM)"
+  // timestamp for when that call was logged. "Last Reached" is just the most
+  // recent of the up-to-4 timestamps on the lead.
+  const getLastReachedLabel = (lead) => {
+    if (!lead) return null;
+    let latest = null;
+    for (const idx of [7, 8, 9, 10]) {
+      const raw = (lead[idx] || '').toString().trim();
+      if (!raw) continue;
+      const match = raw.match(/\((\d{1,2})\/(\d{1,2})\/(\d{4}),?\s+(\d{1,2}):(\d{2}):(\d{2})\s*(AM|PM)\)/i);
+      if (!match) continue;
+      const [, month, day, year, rawHour, minute, second, ampm] = match;
+      let hour = parseInt(rawHour, 10) % 12;
+      if (/pm/i.test(ampm)) hour += 12;
+      const ts = new Date(Number(year), Number(month) - 1, Number(day), hour, Number(minute), Number(second));
+      if (!latest || ts > latest) latest = ts;
+    }
+    if (!latest) return null;
+    const dd = String(latest.getDate()).padStart(2, '0');
+    const mm = String(latest.getMonth() + 1).padStart(2, '0');
+    const time = latest.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+    return `${dd}/${mm}/${latest.getFullYear()} ${time}`;
+  };
+
   const renderSlotHistory = (index, slotName, timeRange) => {
     const value = currentLead?.[index];
     const statusLabel = value ? value.trim() : 'No call made';
@@ -714,6 +738,9 @@ export default function Calling() {
                       <th className="p-4 font-semibold">Email</th>
                       <th className="p-4 font-semibold">Lead Received</th>
                       <th className="p-4 font-semibold text-center">Attempts</th>
+                      {selectedAttemptNeeded === 4 && (
+                        <th className="p-4 font-semibold">Last Reached</th>
+                      )}
                       <th className="p-4 font-semibold text-right">
                         {isEditing ? (
                           <div className="flex justify-end gap-2">
@@ -786,6 +813,9 @@ export default function Calling() {
                       </td>
                       <td className="p-4">{currentLead?.[1] || ''} {currentLead?.[2] || ''}</td>
                       <td className="p-4 text-center font-bold text-primary">{currentLead?.[11] || 0}</td>
+                      {selectedAttemptNeeded === 4 && (
+                        <td className="p-4 text-on-surface-variant">{getLastReachedLabel(currentLead) || '—'}</td>
+                      )}
                       <td className="p-4"></td>
                     </tr>
                   </tbody>
