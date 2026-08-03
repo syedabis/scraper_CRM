@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import AppShell from '../components/AppShell';
-import { getPendingActionsByStatus, filterLeadsNeedingAttempt, filterLeadsWithCompletedAttempts } from '../lib/pendingConfirmations';
+import { getPendingActionsByStatus, filterLeadsNeedingAttempt, filterLeadsWithCompletedAttempts, splitSlotEntries } from '../lib/pendingConfirmations';
 
 const ATTEMPT_ORDINALS = { 1: '1st', 2: '2nd', 3: '3rd', 4: '4th' };
 
@@ -436,22 +436,24 @@ export default function Calling() {
     return leads.filter(lead => matchNames.includes(lead[6])).length;
   };
 
-  // Each slot cell (G-J) carries its own "Status (M/D/YYYY, h:mm:ss AM/PM)"
-  // timestamp for when that call was logged. "Last Reached" is just the most
-  // recent of the up-to-4 timestamps on the lead.
+  // Each slot cell (G-J) is a fixed time-of-day window, not an attempt
+  // number — once a window has been reused, its cell holds more than one
+  // comma-separated "Status (M/D/YYYY, h:mm:ss AM/PM)" entry. "Last Reached"
+  // is the most recent timestamp across every entry in all 4 slots.
   const getLastReachedLabel = (lead) => {
     if (!lead) return null;
     let latest = null;
     for (const idx of [7, 8, 9, 10]) {
-      const raw = (lead[idx] || '').toString().trim();
-      if (!raw) continue;
-      const match = raw.match(/\((\d{1,2})\/(\d{1,2})\/(\d{4}),?\s+(\d{1,2}):(\d{2}):(\d{2})\s*(AM|PM)\)/i);
-      if (!match) continue;
-      const [, month, day, year, rawHour, minute, second, ampm] = match;
-      let hour = parseInt(rawHour, 10) % 12;
-      if (/pm/i.test(ampm)) hour += 12;
-      const ts = new Date(Number(year), Number(month) - 1, Number(day), hour, Number(minute), Number(second));
-      if (!latest || ts > latest) latest = ts;
+      const entries = splitSlotEntries(lead[idx]);
+      for (const entry of entries) {
+        const match = entry.match(/\((\d{1,2})\/(\d{1,2})\/(\d{4}),?\s+(\d{1,2}):(\d{2}):(\d{2})\s*(AM|PM)\)/i);
+        if (!match) continue;
+        const [, month, day, year, rawHour, minute, second, ampm] = match;
+        let hour = parseInt(rawHour, 10) % 12;
+        if (/pm/i.test(ampm)) hour += 12;
+        const ts = new Date(Number(year), Number(month) - 1, Number(day), hour, Number(minute), Number(second));
+        if (!latest || ts > latest) latest = ts;
+      }
     }
     if (!latest) return null;
     const dd = String(latest.getDate()).padStart(2, '0');
@@ -461,17 +463,22 @@ export default function Calling() {
   };
 
   const renderSlotHistory = (index, slotName, timeRange) => {
-    const value = currentLead?.[index];
-    const statusLabel = value ? value.trim() : 'No call made';
+    const entries = splitSlotEntries(currentLead?.[index]);
     return (
-      <div className="bg-surface-container-high rounded-lg px-3 py-2 flex items-center" key={slotName}>
-        <span className="text-label-sm truncate">
+      <div className="bg-surface-container-high rounded-lg px-3 py-2" key={slotName}>
+        <span className="text-label-sm">
           <span className="font-semibold text-on-surface uppercase tracking-wider">{slotName}</span>{' '}
-          <span className="text-on-surface-variant/70">[{timeRange}]</span>{' '}
-          <span className={value ? 'text-primary font-semibold' : 'text-on-surface-variant'}>
-            [{statusLabel.toUpperCase()}]
-          </span>
+          <span className="text-on-surface-variant/70">[{timeRange}]</span>
         </span>
+        {entries.length > 0 ? (
+          entries.map((entry, i) => (
+            <div key={i} className="text-label-sm text-primary font-semibold truncate">
+              [{entry.toUpperCase()}]
+            </div>
+          ))
+        ) : (
+          <div className="text-label-sm text-on-surface-variant">[NO CALL MADE]</div>
+        )}
       </div>
     );
   };

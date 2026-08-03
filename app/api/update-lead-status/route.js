@@ -1,5 +1,6 @@
 import { google } from 'googleapis';
 import { NextResponse } from 'next/server';
+import { splitSlotEntries } from '../../lib/pendingConfirmations';
 
 const auth = new google.auth.GoogleAuth({
   credentials: {
@@ -156,10 +157,21 @@ export async function POST(request) {
       timeSlotColumn = 'J'; // Column J for Slot 4 (4:00 PM - 9:00 AM)
     }
 
+    // Fetch the row's current slot values up front — needed both to append
+    // to (rather than overwrite) a reused time-slot cell, and to recompute
+    // Number of Attempts from the true entry count across all 4 slots below.
+    const SLOT_COLUMN_TO_INDEX = { G: 6, H: 7, I: 8, J: 9 }; // within A:K
+    const rowRange = `${owner.toLowerCase()}!A${rowIndex}:K${rowIndex}`;
+    const rowResponse = await sheets.spreadsheets.values.get({
+      spreadsheetId,
+      range: rowRange,
+    });
+    const rowData = rowResponse.data.values?.[0] || [];
+
     // Update the status in column F (6th column)
     const updateRange = `${owner.toLowerCase()}!F${rowIndex}`;
     console.log('Updating status range:', updateRange);
-    
+
     const updateResponse = await sheets.spreadsheets.values.update({
       spreadsheetId,
       range: updateRange,
@@ -171,19 +183,26 @@ export async function POST(request) {
 
     console.log('Status update response:', updateResponse.data);
 
-    // Update the corresponding time slot column with status and time
+    // Update the corresponding time slot column with status and time. A
+    // slot is a fixed time-of-day window, not an attempt number — if this
+    // lead was already called during this same window before, append the
+    // new entry instead of overwriting and silently destroying the earlier
+    // call's record.
+    let newSlotValue = null;
     if (timeSlotColumn) {
+      const existingSlotValue = (rowData[SLOT_COLUMN_TO_INDEX[timeSlotColumn]] || '').toString().trim();
+      const entry = `${status} (${currentTime})`;
+      newSlotValue = existingSlotValue ? `${existingSlotValue},${entry}` : entry;
+
       const timeSlotRange = `${owner.toLowerCase()}!${timeSlotColumn}${rowIndex}`;
-      const timeSlotValue = `${status} (${currentTime})`;
-      
-      console.log('Updating time slot range:', timeSlotRange, 'with value:', timeSlotValue);
-      
+      console.log('Updating time slot range:', timeSlotRange, 'with value:', newSlotValue);
+
       const timeSlotResponse = await sheets.spreadsheets.values.update({
         spreadsheetId,
         range: timeSlotRange,
         valueInputOption: 'RAW',
         resource: {
-          values: [[timeSlotValue]]
+          values: [[newSlotValue]]
         }
       });
 
@@ -237,27 +256,19 @@ export async function POST(request) {
       }
     }
 
-    // Calculate and update the Number of Attempts column (Column K)
+    // Calculate and update the Number of Attempts column (Column K). Slots
+    // G-J are time-of-day windows, not attempt numbers, and a window can now
+    // hold more than one comma-separated entry once it's been reused — so
+    // the true attempt count is the total number of entries across all 4
+    // slots (using rowData fetched above, plus the slot we just wrote),
+    // not just how many of the 4 cells are non-empty.
     try {
-      // First, get the current row data to count existing attempts
-      const rowRange = `${owner.toLowerCase()}!A${rowIndex}:K${rowIndex}`;
-      const rowResponse = await sheets.spreadsheets.values.get({
-        spreadsheetId,
-        range: rowRange,
-      });
+      const slotValues = ['G', 'H', 'I', 'J'].map((col) =>
+        col === timeSlotColumn ? newSlotValue : (rowData[SLOT_COLUMN_TO_INDEX[col]] || '')
+      );
 
-      const rowData = rowResponse.data.values?.[0] || [];
-      
-      // Count non-empty slot values (columns G, H, I, J - indices 6, 7, 8, 9)
-      const slotValues = [
-        rowData[6] || '', // Slot 1 (G)
-        rowData[7] || '', // Slot 2 (H) 
-        rowData[8] || '', // Slot 3 (I)
-        rowData[9] || ''  // Slot 4 (J)
-      ];
-      
-      const numberOfAttempts = slotValues.filter(v => v && v.trim() !== '').length;
-      
+      const numberOfAttempts = slotValues.reduce((sum, val) => sum + splitSlotEntries(val).length, 0);
+
       // Update the Number of Attempts column (Column K)
       const attemptsRange = `${owner.toLowerCase()}!K${rowIndex}`;
       console.log('Updating attempts range:', attemptsRange, 'with value:', numberOfAttempts);

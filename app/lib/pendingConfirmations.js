@@ -49,11 +49,44 @@ export function getPendingActionsByStatus(leads) {
   return groups;
 }
 
-// Slot columns G-J. fetch-leads prepends the row number, so they land here.
-const SLOT_INDICES = [7, 8, 9, 10];
+// Slot columns G-J are fixed time-of-day windows (9-11am/11am-1pm/1-4pm/
+// 4pm-9am), not attempt numbers — a lead called twice in the same window on
+// different days appends a second entry into that same cell instead of
+// overwriting the first, so a slot cell can hold more than one
+// comma-separated "Status (timestamp)" entry. Splits only on commas outside
+// parentheses, since status names like "Payment Pending (Confirmation)"
+// contain their own parens.
+export function splitSlotEntries(raw) {
+  const str = (raw || '').toString();
+  if (!str.trim()) return [];
+  const parts = [];
+  let depth = 0;
+  let current = '';
+  for (const ch of str) {
+    if (ch === '(') depth++;
+    else if (ch === ')') depth = Math.max(0, depth - 1);
+    if (ch === ',' && depth === 0) {
+      parts.push(current);
+      current = '';
+    } else {
+      current += ch;
+    }
+  }
+  parts.push(current);
+  return parts.map((p) => p.trim()).filter(Boolean);
+}
+
+// Column K — fetch-leads prepends the row number, so it lands here. Backend
+// keeps this as the true running total of logged calls (summed across all 4
+// slots' entries), independent of which/how many of the 4 cells are filled.
+const ATTEMPTS_INDEX = 11;
+
+function getAttemptCount(lead) {
+  return parseInt(lead?.[ATTEMPTS_INDEX], 10) || 0;
+}
 
 // A lead is "done" once it reaches one of these — it no longer needs any
-// more attempts, regardless of how many slots are filled. Includes both the
+// more attempts, regardless of how many attempts it took. Includes both the
 // current status vocabulary and the old text pre-dating the rename.
 const TERMINAL_STATUSES = [
   'Client Lost', 'Lost',
@@ -61,10 +94,6 @@ const TERMINAL_STATUSES = [
   'Paid', 'Enrolled',
   'Demo',
 ];
-
-function countFilledSlots(lead) {
-  return SLOT_INDICES.filter((idx) => (lead[idx] || '').toString().trim() !== '').length;
-}
 
 // Leads exactly ready for their Nth call attempt — active (non-terminal)
 // status and exactly N-1 attempts made so far (1st Attempt = nobody's
@@ -78,7 +107,7 @@ export function filterLeadsNeedingAttempt(leads, n) {
   return (leads || []).filter((lead) => {
     const status = (lead[6] || '').trim();
     if (TERMINAL_STATUSES.includes(status)) return false;
-    return countFilledSlots(lead) === n - 1;
+    return getAttemptCount(lead) === n - 1;
   });
 }
 
@@ -95,13 +124,14 @@ export function getLeadsNeedingAttempt(leads, n) {
 
 // A lead is "done" for two different reasons, both counted here: it
 // reached a final status (Lost/Enrolled/Demo/etc — regardless of how many
-// attempts that took), or it used up all 4 call slots without ever
-// reaching one. Together with filterLeadsNeedingAttempt(1-4), this fully
+// attempts that took), or it's used up 4 or more attempts without ever
+// reaching one (>= rather than === since a reused slot can push the true
+// count past 4). Together with filterLeadsNeedingAttempt(1-4), this fully
 // partitions every lead into exactly one tab.
 export function filterLeadsWithCompletedAttempts(leads) {
   return (leads || []).filter((lead) => {
     const status = (lead[6] || '').trim();
     if (TERMINAL_STATUSES.includes(status)) return true;
-    return countFilledSlots(lead) === 4;
+    return getAttemptCount(lead) >= 4;
   });
 }

@@ -3,6 +3,7 @@
 import { useState, useCallback } from "react";
 import React from "react";
 import AppShell from "../components/AppShell";
+import { splitSlotEntries } from "../lib/pendingConfirmations";
 
 export default function AdminPanel() {
   const [allLeads, setAllLeads] = useState([]);
@@ -105,19 +106,23 @@ export default function AdminPanel() {
       return matches;
     });
     
-    // Count total calls made (each matching slot) on selected date
+    // Count total calls made (each logged entry, across all 4 slots) on
+    // selected date. A slot cell can hold more than one comma-separated
+    // entry once its time-of-day window has been reused, so each slot must
+    // be split into its individual entries rather than treated as one call.
     let callsMadeCount = 0;
     agentLeads.forEach((lead) => {
       const slots = [lead[7] || '', lead[8] || '', lead[9] || '', lead[10] || ''];
       slots.forEach(slot => {
-        if (!slot || slot.trim() === '') return;
-        const dateMatch = slot.match(/\(([^,]+)/);
-        if (dateMatch) {
-          const extractedDate = dateMatch[1].trim();
-          if (callDateFormats.some(format => extractedDate === format)) {
-            callsMadeCount++;
+        splitSlotEntries(slot).forEach((entry) => {
+          const dateMatch = entry.match(/\(([^,]+)/);
+          if (dateMatch) {
+            const extractedDate = dateMatch[1].trim();
+            if (callDateFormats.some(format => extractedDate === format)) {
+              callsMadeCount++;
+            }
           }
-        }
+        });
       });
     });
     
