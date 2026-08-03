@@ -745,18 +745,18 @@ export default function Calling() {
             {/* Lead Info Header */}
             <section className="grid grid-cols-1 md:grid-cols-5 gap-4">
               <div className="col-span-1 md:col-span-5 bg-surface-container rounded-xl border border-outline-variant p-1">
-                <table className="w-full text-left border-collapse">
+                <table className="w-full text-left border-collapse table-fixed">
                   <thead>
                     <tr className="bg-surface-container-high text-on-surface-variant text-label-md border-b border-outline-variant">
-                      <th className="p-4 font-semibold">Name</th>
-                      <th className="p-4 font-semibold">Phone</th>
-                      <th className="p-4 font-semibold">Email</th>
-                      <th className="p-4 font-semibold">Lead Received</th>
-                      <th className="p-4 font-semibold text-center">Attempts</th>
+                      <th className={`p-4 font-semibold ${selectedAttemptNeeded === 4 ? 'w-[20%]' : 'w-[22%]'}`}>Name</th>
+                      <th className={`p-4 font-semibold ${selectedAttemptNeeded === 4 ? 'w-[16%]' : 'w-[18%]'}`}>Phone</th>
+                      <th className={`p-4 font-semibold ${selectedAttemptNeeded === 4 ? 'w-[14%]' : 'w-[16%]'}`}>Email</th>
+                      <th className={`p-4 font-semibold ${selectedAttemptNeeded === 4 ? 'w-[18%]' : 'w-[22%]'}`}>Lead Received</th>
+                      <th className={`p-4 font-semibold text-center ${selectedAttemptNeeded === 4 ? 'w-[8%]' : 'w-[10%]'}`}>Attempts</th>
                       {selectedAttemptNeeded === 4 && (
-                        <th className="p-4 font-semibold">Last Reached</th>
+                        <th className="p-4 font-semibold w-[14%]">Last Reached</th>
                       )}
-                      <th className="p-4 font-semibold text-right">
+                      <th className={`p-4 font-semibold text-right ${selectedAttemptNeeded === 4 ? 'w-[10%]' : 'w-[12%]'}`}>
                         {isEditing ? (
                           <div className="flex justify-end gap-2">
                             <button
@@ -787,7 +787,7 @@ export default function Calling() {
                   </thead>
                   <tbody>
                     <tr className="text-body-md hover:bg-surface-container-highest transition-colors">
-                      <td className="p-4">
+                      <td className="p-4 truncate">
                         {isEditing ? (
                           <input
                             type="text"
@@ -796,13 +796,13 @@ export default function Calling() {
                             className="w-full bg-surface-container-high border border-outline-variant rounded-md px-2 py-1 text-on-surface outline-none focus:border-primary"
                           />
                         ) : (
-                          <span className="flex items-center gap-2">
-                            <span className="w-2 h-2 rounded-full bg-secondary" />
-                            {currentLead?.[3] || ''}
+                          <span className="flex items-center gap-2 truncate" title={currentLead?.[3] || ''}>
+                            <span className="w-2 h-2 rounded-full bg-secondary shrink-0" />
+                            <span className="truncate font-medium">{currentLead?.[3] || ''}</span>
                           </span>
                         )}
                       </td>
-                      <td className="p-4">
+                      <td className="p-4 truncate">
                         {isEditing ? (
                           <input
                             type="text"
@@ -811,10 +811,10 @@ export default function Calling() {
                             className="w-full bg-surface-container-high border border-outline-variant rounded-md px-2 py-1 text-on-surface outline-none focus:border-primary"
                           />
                         ) : (
-                          currentLead?.[5] || ''
+                          <span className="truncate">{currentLead?.[5] || ''}</span>
                         )}
                       </td>
-                      <td className="p-4 text-on-surface-variant">
+                      <td className="p-4 text-on-surface-variant truncate">
                         {isEditing ? (
                           <input
                             type="email"
@@ -823,13 +823,19 @@ export default function Calling() {
                             className="w-full bg-surface-container-high border border-outline-variant rounded-md px-2 py-1 text-on-surface outline-none focus:border-primary"
                           />
                         ) : (
-                          currentLead?.[4] || 'Not provided'
+                          <span className="truncate" title={currentLead?.[4] || 'Not provided'}>
+                            {currentLead?.[4] || 'Not provided'}
+                          </span>
                         )}
                       </td>
-                      <td className="p-4">{currentLead?.[1] || ''} {currentLead?.[2] || ''}</td>
+                      <td className="p-4 truncate">
+                        <span className="truncate">{currentLead?.[1] || ''} {currentLead?.[2] || ''}</span>
+                      </td>
                       <td className="p-4 text-center font-bold text-primary">{currentLead?.[11] || 0}</td>
                       {selectedAttemptNeeded === 4 && (
-                        <td className="p-4 text-on-surface-variant">{getLastReachedLabel(currentLead) || '—'}</td>
+                        <td className="p-4 text-on-surface-variant truncate">
+                          <span className="truncate">{getLastReachedLabel(currentLead) || '—'}</span>
+                        </td>
                       )}
                       <td className="p-4"></td>
                     </tr>
