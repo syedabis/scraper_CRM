@@ -20,23 +20,22 @@ export default function Sidebar({ children, footerExtra, open = true }) {
         open ? 'translate-x-0' : '-translate-x-full'
       }`}
     >
-      <div className="mb-6 px-2 h-11 w-full">
+      <div className="mb-4 px-1 h-16 w-full flex items-center justify-start">
         <img
-          src="/logo-new-cropped.png"
-          alt="Cognos Sales CRM"
-          className="h-full w-full object-contain object-center"
+          src="/logo.png"
+          alt="CognosX Sales Portal"
+          className="h-12 w-auto max-w-full object-contain object-left"
         />
       </div>
 
       <Link
         href="/data-entry"
-        className="w-full bg-brand-purple text-white py-2 px-4 rounded-lg text-label-md mb-6 hover:brightness-110 transition-all flex items-center justify-center gap-2"
-        style={{ boxShadow: "0 0 20px rgba(92,228,109,0.35)" }}
+        className="w-full bg-[#183a26] text-emerald-300 border border-emerald-500/30 py-3 px-4 rounded-lg text-label-md mb-4 hover:bg-[#204d33] hover:text-white transition-all flex items-center justify-start gap-3 font-medium cursor-pointer"
       >
-        <span className="material-symbols-outlined text-[18px]" style={{ fontVariationSettings: "'FILL' 1" }}>
+        <span className="material-symbols-outlined text-[20px]">
           add
         </span>
-        Add New Lead
+        <span>Add New Lead</span>
       </Link>
 
       <div className="flex-1 overflow-y-auto themed-scrollbar -mr-2 pr-2">
@@ -69,7 +68,7 @@ export default function Sidebar({ children, footerExtra, open = true }) {
       <div className="mt-auto pt-2">
         <button className="w-full glass-card p-2.5 flex items-center justify-between hover:bg-white/5 transition-colors text-muted text-label-sm font-medium cursor-pointer">
           <span className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-[18px] text-brand-purple">headset_mic</span>
+            <span className="material-symbols-outlined text-[18px] text-brand-green">headset_mic</span>
             Help &amp; Support
           </span>
           <span className="material-symbols-outlined text-[16px] text-dim">chevron_right</span>

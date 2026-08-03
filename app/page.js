@@ -18,11 +18,11 @@ import { getPendingActionsByStatus } from './lib/pendingConfirmations';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Filler, Tooltip);
 
-// ── Template reskin palette (canvas can't read CSS vars) ──────────────────────
-const C_PURPLE = '#5ce46d';
+// ── Template reskin palette ──────────────────────
+const C_PURPLE = '#a855f7';
 const C_GREEN = '#5ce46d';
-const C_ORANGE = '#5ce46d';
-const C_BLUE = '#5ce46d';
+const C_ORANGE = '#ff9800';
+const C_BLUE = '#00d2ff';
 const C_MUTED = '#8b949e';
 const C_GRID = 'rgba(255,255,255,0.04)';
 
@@ -49,7 +49,7 @@ function vGradient(context, hex, topAlpha = '55') {
   return g;
 }
 
-// Neon glow: wrap each line dataset draw with a coloured canvas shadow.
+// Soft glow: wrap each line dataset draw with a subtle canvas shadow.
 const neonLinePlugin = {
   id: 'neonLine',
   beforeDatasetDraw(chart, args) {
@@ -57,8 +57,8 @@ const neonLinePlugin = {
     const color = chart.data.datasets[args.index]?.borderColor;
     const { ctx } = chart;
     ctx.save();
-    ctx.shadowColor = typeof color === 'string' ? color : 'rgba(92,228,109,0.9)';
-    ctx.shadowBlur = 14;
+    ctx.shadowColor = typeof color === 'string' ? color : 'rgba(92,228,109,0.4)';
+    ctx.shadowBlur = 4;
   },
   afterDatasetDraw(chart, args) {
     if (args.meta.type !== 'line') return;
@@ -66,7 +66,7 @@ const neonLinePlugin = {
   },
 };
 
-// Neon glow for bar datasets — colour follows each bar's fill.
+// Soft glow for bar datasets — colour follows each bar's fill.
 const neonBarPlugin = {
   id: 'neonBar',
   beforeDatasetDraw(chart, args) {
@@ -74,8 +74,8 @@ const neonBarPlugin = {
     const color = chart.data.datasets[args.index]?.backgroundColor;
     const { ctx } = chart;
     ctx.save();
-    ctx.shadowColor = typeof color === 'string' ? color : 'rgba(92,228,109,0.9)';
-    ctx.shadowBlur = 12;
+    ctx.shadowColor = typeof color === 'string' ? color : 'rgba(92,228,109,0.4)';
+    ctx.shadowBlur = 4;
   },
   afterDatasetDraw(chart, args) {
     if (args.meta.type !== 'bar') return;
@@ -691,11 +691,11 @@ function MiniDonut({ value, color = C_GREEN }) {
   const blurId = `md-blur-${uid}`;
   return (
     <div className="relative w-9 h-9 shrink-0">
-      {/* Blurred glow copy */}
-      <svg className="absolute inset-0 w-full h-full opacity-80" viewBox="0 0 40 40" style={{ overflow: 'visible' }}>
+      {/* Subtle glow copy */}
+      <svg className="absolute inset-0 w-full h-full opacity-25" viewBox="0 0 40 40" style={{ overflow: 'visible' }}>
         <defs>
           <filter id={blurId} x="-40%" y="-40%" width="180%" height="180%">
-            <feGaussianBlur stdDeviation="2.5" />
+            <feGaussianBlur stdDeviation="1.2" />
           </filter>
         </defs>
         <circle
@@ -732,7 +732,7 @@ function MiniDonut({ value, color = C_GREEN }) {
   );
 }
 
-// Pending Installments ring — SVG so the neon glow (a blurred copy behind the
+// Pending Installments ring — SVG so the subtle glow (a blurred copy behind the
 // sharp ring) hugs only the bar, never the card. Follows pending-installement.html.
 function PendingRing({ paid, notPaying, pending }) {
   const total = paid + notPaying + pending;
@@ -751,12 +751,12 @@ function PendingRing({ paid, notPaying, pending }) {
 
   return (
     <div className="relative w-44 h-44">
-      {/* Blurred glow copy */}
-      <svg className="absolute inset-0 w-full h-full opacity-70" viewBox="0 0 120 120" style={{ overflow: 'visible' }}>
+      {/* Subtle glow copy */}
+      <svg className="absolute inset-0 w-full h-full opacity-25" viewBox="0 0 120 120" style={{ overflow: 'visible' }}>
         <defs>
           <linearGradient id="pendGlow" x1="1" y1="0" x2="0" y2="1">{stops}</linearGradient>
           <filter id="pendBlur" x="-20%" y="-20%" width="140%" height="140%">
-            <feGaussianBlur stdDeviation="7" />
+            <feGaussianBlur stdDeviation="3" />
           </filter>
         </defs>
         <circle
@@ -905,7 +905,7 @@ export default function Home() {
       value: stats.confirmations,
       delta: previousStats ? calcDelta(stats.confirmations, previousStats.confirmations) : null,
       icon: 'verified',
-      accent: 'green',
+      accent: 'orange',
       series: timeSeries.points.map((p) => p.confirmations),
     },
     {
@@ -913,7 +913,7 @@ export default function Home() {
       value: stats.paid,
       delta: previousStats ? calcDelta(stats.paid, previousStats.paid) : null,
       icon: 'payments',
-      accent: 'blue',
+      accent: 'green',
       series: timeSeries.points.map((p) => p.paid),
     },
     {
@@ -938,13 +938,31 @@ export default function Home() {
           </div>
 
           <div className="flex items-center gap-2.5 flex-wrap">
-            <div className="header-btn flex items-center px-3.5 py-2 text-xs text-gray-300">
+            {allPendingItems.length > 0 && (
+              <button
+                onClick={() => setShowPendingModal(true)}
+                className="header-btn h-10 flex items-center px-3 gap-2 hover:brightness-125 transition-all text-left cursor-pointer"
+                style={{ borderColor: `${C_GREEN}4D`, backgroundColor: 'rgba(92, 228, 109, 0.08)' }}
+              >
+                <span
+                  className="icon-neon w-6 h-6 shrink-0 rounded flex items-center justify-center border"
+                  style={{ backgroundColor: `${C_GREEN}26`, color: C_GREEN, borderColor: `${C_GREEN}40` }}
+                >
+                  <span className="material-symbols-outlined text-[14px]">notifications_active</span>
+                </span>
+                <span className="text-xs font-semibold text-white whitespace-nowrap pr-1">
+                  {allPendingItems.length} followups today
+                </span>
+              </button>
+            )}
+
+            <div className="header-btn h-10 flex items-center px-3.5 text-xs text-gray-300">
               <span className="material-symbols-outlined text-[15px] mr-2 text-dim">calendar_today</span>
-              <span className="font-medium">{rangeLabel}</span>
+              <span className="font-medium whitespace-nowrap">{rangeLabel}</span>
             </div>
 
             {preset === 'custom' && (
-              <div className="header-btn flex items-center px-3 py-1.5 gap-1.5 text-xs text-gray-300">
+              <div className="header-btn h-10 flex items-center px-3 gap-1.5 text-xs text-gray-300">
                 <input
                   type="date"
                   value={customRange.start}
@@ -961,11 +979,12 @@ export default function Home() {
               </div>
             )}
 
-            <div className="header-btn flex items-center pl-3 pr-2 text-xs text-gray-300">
+            <div className="header-btn h-10 flex items-center pl-3 pr-2 text-xs text-gray-300">
+              <span className="material-symbols-outlined text-[15px] mr-1.5 text-dim">tune</span>
               <select
                 value={preset}
                 onChange={(e) => setPreset(e.target.value)}
-                className="bg-transparent py-2 outline-none cursor-pointer"
+                className="bg-transparent h-full outline-none cursor-pointer"
               >
                 {PRESET_OPTIONS.map((opt) => (
                   <option key={opt.value} value={opt.value} className="bg-[#0e111e] text-gray-200">
@@ -979,40 +998,26 @@ export default function Home() {
               onClick={loadData}
               disabled={loading}
               title="Refresh data"
-              className="header-btn w-9 h-9 flex items-center justify-center text-muted hover:text-white disabled:opacity-50"
+              className="header-btn w-10 h-10 flex items-center justify-center text-muted hover:text-white disabled:opacity-50"
             >
               <span className={`material-symbols-outlined text-[16px] ${loading ? 'animate-spin' : ''}`}>refresh</span>
             </button>
 
-            <div className="ml-1 flex items-center">
-              <UserButton afterSignOutUrl="/sign-in" />
+            <div className="header-btn w-10 h-10 flex items-center justify-center p-0.5 cursor-pointer">
+              <UserButton
+                afterSignOutUrl="/sign-in"
+                appearance={{
+                  elements: {
+                    avatarBox: "w-7 h-7"
+                  }
+                }}
+              />
             </div>
           </div>
         </div>
 
         {error && (
           <div className="glass-card border-brand-red/30 text-brand-red p-4 text-center text-xs">{error}</div>
-        )}
-
-        {allPendingItems.length > 0 && (
-          <div>
-            <button
-              onClick={() => setShowPendingModal(true)}
-              className="glass-card p-3 flex items-center gap-3 hover:brightness-110 transition-all text-left"
-              style={{ borderColor: `${C_GREEN}4D` }}
-            >
-              <span
-                className="icon-neon w-8 h-8 shrink-0 rounded-md flex items-center justify-center border"
-                style={{ backgroundColor: `${C_GREEN}1A`, color: C_GREEN, borderColor: `${C_GREEN}33` }}
-              >
-                <span className="material-symbols-outlined text-[16px]">notifications_active</span>
-              </span>
-              <span className="text-xs">
-                <span className="font-semibold text-white block">{allPendingItems.length} student{allPendingItems.length === 1 ? '' : 's'} to look up</span>
-                <span className="text-muted">{pendingActionStatuses.join(', ')}</span>
-              </span>
-            </button>
-          </div>
         )}
 
         {showPendingModal && (
@@ -1115,10 +1120,10 @@ export default function Home() {
 
                 <div className="flex justify-center gap-5 mt-2 text-[10px] text-muted font-medium">
                   <span className="flex items-center gap-1.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-white shadow-[0_0_6px_#ffffff]" /> Total Leads
+                    <span className="w-1.5 h-1.5 rounded-full bg-white" /> Total Leads
                   </span>
                   <span className="flex items-center gap-1.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-brand-green shadow-[0_0_6px_#5ce46d]" /> Converted
+                    <span className="w-1.5 h-1.5 rounded-full bg-brand-green" /> Converted
                   </span>
                 </div>
               </div>
@@ -1142,10 +1147,10 @@ export default function Home() {
 
                 <div className="flex justify-center gap-3 mt-2 text-[9px] text-muted font-medium flex-wrap">
                   <span className="flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-[2px] bg-white shadow-[0_0_6px_#ffffff]" /> Total
+                    <span className="w-2 h-2 rounded-[2px] bg-white" /> Total
                   </span>
                   <span className="flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-[2px] bg-brand-green shadow-[0_0_6px_#5ce46d]" /> Converted (Demo, Paid, Confirmations)
+                    <span className="w-2 h-2 rounded-[2px] bg-brand-green" /> Converted (Demo, Paid, Confirmations)
                   </span>
                 </div>
               </div>

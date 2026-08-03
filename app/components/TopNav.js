@@ -10,7 +10,16 @@ export default function TopNav({ title, search }) {
       </div>
       <div className="flex items-center justify-end gap-4 w-2/3 pointer-events-auto">
         {search}
-        <UserButton afterSignOutUrl="/sign-in" />
+        <div className="header-btn w-10 h-10 flex items-center justify-center p-0.5 cursor-pointer">
+          <UserButton
+            afterSignOutUrl="/sign-in"
+            appearance={{
+              elements: {
+                avatarBox: "w-7 h-7"
+              }
+            }}
+          />
+        </div>
       </div>
     </header>
   );

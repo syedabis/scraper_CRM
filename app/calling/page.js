@@ -63,14 +63,14 @@ export default function Calling() {
   ];
 
   const statusActions = [
-    { status: 'Connected', label: 'Connected', className: 'bg-[#F6992D] text-[#1f2937] hover:brightness-95 border border-transparent' },
-    { status: 'No Answer', label: 'No Answer', className: 'bg-[#ED6A5A] text-white hover:brightness-110 border border-transparent' },
-    { status: 'Follow Up', label: 'Follow Up', className: 'bg-[#A75A5A] text-white hover:brightness-110 border border-transparent' },
-    { status: 'Registration', label: 'Registration', className: 'bg-[#4C7680] text-white hover:brightness-110 border border-transparent' },
-    { status: 'Payment Pending (Confirmation)', label: 'Payment Pending (Confirmation)', className: 'bg-[#7DBA60] text-white hover:brightness-110 border border-transparent' },
-    { status: 'Demo', label: 'Demo', className: 'bg-[#38A3A5] text-white hover:brightness-110 border border-transparent' },
-    { status: 'Enrolled', label: 'Enrolled', className: 'bg-[#C2D11B] text-[#1f2937] hover:brightness-95 border border-transparent' },
-    { status: 'Lost', label: 'Lost', className: 'bg-[#60495A] text-white hover:brightness-125 border border-transparent' },
+    { status: 'Connected', label: 'Connected', className: 'bg-[#2563EB] text-white hover:bg-[#1D4ED8] border border-blue-500/30' },
+    { status: 'No Answer', label: 'No Answer', className: 'bg-[#475569] text-white hover:bg-[#334155] border border-slate-500/30' },
+    { status: 'Follow Up', label: 'Follow Up', className: 'bg-[#D97706] text-white hover:bg-[#B45309] border border-amber-500/30' },
+    { status: 'Demo', label: 'Demo', className: 'bg-[#0891B2] text-white hover:bg-[#0E7490] border border-cyan-500/30' },
+    { status: 'Registration', label: 'Registration', className: 'bg-[#9333EA] text-white hover:bg-[#7E22CE] border border-purple-500/30' },
+    { status: 'Payment Pending (Confirmation)', label: 'Payment Pending (Confirmation)', className: 'bg-[#65A30D] text-white hover:bg-[#4D7C0F] border border-lime-500/30' },
+    { status: 'Enrolled', label: 'Enrolled', className: 'bg-[#16A34A] text-white hover:bg-[#15803D] font-bold border border-green-500/30 shadow-[0_0_12px_rgba(22,163,74,0.3)]' },
+    { status: 'Lost', label: 'Lost', className: 'bg-[#DC2626] text-white hover:bg-[#B91C1C] font-bold border border-red-500/30 shadow-[0_0_12px_rgba(220,38,38,0.3)]' },
   ];
 
   // Function to get current Pakistani time slot
@@ -490,37 +490,57 @@ export default function Calling() {
   };
 
   const search = (
-    <div className="relative w-full max-w-md">
-      <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-sm">search</span>
-      <input
-        className="w-full bg-surface-container-high border border-outline-variant rounded-full py-2 pl-10 pr-4 text-body-md text-on-surface focus:border-primary focus:ring-1 focus:ring-primary transition-all outline-none"
-        placeholder="Search by name or phone number..."
-        type="text"
-        value={searchQuery}
-        onChange={(e) => handleSearch(e.target.value)}
-      />
-      {searchResults.length > 0 && searchQuery && (
-        <div className="absolute top-full left-0 right-0 mt-1 bg-surface-container-high border border-outline-variant rounded-lg shadow-lg z-50 max-h-60 overflow-y-auto themed-scrollbar">
-          {searchResults.map((lead, index) => (
-            <button
-              key={index}
-              onClick={() => navigateToLead(lead)}
-              className="w-full p-3 text-left hover:bg-surface-container-highest border-b border-outline-variant last:border-b-0 transition-colors"
-            >
-              <div className="text-primary text-label-sm">{lead[3] || 'No Name'}</div>
-              <div className="text-on-surface text-body-md">{lead[5] || 'No Phone'}</div>
-              <div className="flex justify-between items-center">
-                <span className="text-on-surface-variant text-label-sm">{lead[6] || 'New Lead'}</span>
-              </div>
-            </button>
-          ))}
-        </div>
+    <div className="flex items-center gap-3">
+      {allPendingItems.length > 0 && (
+        <button
+          onClick={() => setShowPendingModal(true)}
+          className="header-btn h-10 flex items-center px-3 gap-2 hover:brightness-125 transition-all text-left cursor-pointer shrink-0"
+          style={{ borderColor: 'rgba(92, 228, 109, 0.3)', backgroundColor: 'rgba(92, 228, 109, 0.08)' }}
+        >
+          <span
+            className="icon-neon w-6 h-6 shrink-0 rounded flex items-center justify-center border"
+            style={{ backgroundColor: 'rgba(92, 228, 109, 0.15)', color: '#5ce46d', borderColor: 'rgba(92, 228, 109, 0.3)' }}
+          >
+            <span className="material-symbols-outlined text-[14px]">notifications_active</span>
+          </span>
+          <span className="text-xs font-semibold text-white whitespace-nowrap pr-1">
+            {allPendingItems.length} followups today
+          </span>
+        </button>
       )}
-      {searchQuery && searchResults.length === 0 && (
-        <div className="absolute top-full left-0 right-0 mt-1 bg-surface-container-high border border-outline-variant rounded-lg shadow-lg z-50 p-3">
-          <div className="text-on-surface-variant text-center text-body-md">No leads found</div>
-        </div>
-      )}
+
+      <div className="relative w-full max-w-md">
+        <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-sm">search</span>
+        <input
+          className="w-full bg-surface-container-high border border-outline-variant rounded-full py-2 pl-10 pr-4 text-body-md text-on-surface focus:border-primary focus:ring-1 focus:ring-primary transition-all outline-none"
+          placeholder="Search by name or phone number..."
+          type="text"
+          value={searchQuery}
+          onChange={(e) => handleSearch(e.target.value)}
+        />
+        {searchResults.length > 0 && searchQuery && (
+          <div className="absolute top-full left-0 right-0 mt-1 bg-surface-container-high border border-outline-variant rounded-lg shadow-lg z-50 max-h-60 overflow-y-auto themed-scrollbar">
+            {searchResults.map((lead, index) => (
+              <button
+                key={index}
+                onClick={() => navigateToLead(lead)}
+                className="w-full p-3 text-left hover:bg-surface-container-highest border-b border-outline-variant last:border-b-0 transition-colors"
+              >
+                <div className="text-primary text-label-sm">{lead[3] || 'No Name'}</div>
+                <div className="text-on-surface text-body-md">{lead[5] || 'No Phone'}</div>
+                <div className="flex justify-between items-center">
+                  <span className="text-on-surface-variant text-label-sm">{lead[6] || 'New Lead'}</span>
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+        {searchQuery && searchResults.length === 0 && (
+          <div className="absolute top-full left-0 right-0 mt-1 bg-surface-container-high border border-outline-variant rounded-lg shadow-lg z-50 p-3">
+            <div className="text-on-surface-variant text-center text-body-md">No leads found</div>
+          </div>
+        )}
+      </div>
     </div>
   );
 
@@ -544,16 +564,16 @@ export default function Calling() {
             <li key={category.name}>
               <button
                 onClick={() => handleStatusSelect(category.name)}
-                className={`w-full flex items-start gap-3 rounded-lg px-4 py-2 transition-all duration-200 ${
+                className={`w-full flex items-center gap-3 rounded-lg px-4 py-2.5 transition-all duration-200 ${
                   active
                     ? 'bg-secondary-container text-on-secondary-container border-l-4 border-secondary shadow-sm'
                     : 'text-on-surface-variant hover:bg-surface-container-highest'
                 }`}
               >
-                <span className="material-symbols-outlined shrink-0">{category.icon}</span>
-                <span className="text-label-md leading-tight text-left flex-1">{category.name}</span>
+                <span className="material-symbols-outlined shrink-0 w-6 flex justify-center text-[20px]">{category.icon}</span>
+                <span className="text-label-md leading-tight text-left flex-1 font-medium">{category.name}</span>
                 <span
-                  className={`ml-auto shrink-0 px-2 py-0.5 rounded-full text-label-sm ${
+                  className={`ml-auto shrink-0 min-w-[28px] text-center px-2 py-0.5 rounded-full text-label-sm font-semibold ${
                     active ? 'bg-secondary text-on-secondary' : 'bg-surface-variant'
                   }`}
                 >
@@ -575,16 +595,16 @@ export default function Calling() {
             <li key={n}>
               <button
                 onClick={() => handleAttemptNeededSelect(n)}
-                className={`w-full flex items-start gap-3 rounded-lg px-4 py-2 transition-all duration-200 ${
+                className={`w-full flex items-center gap-3 rounded-lg px-4 py-2.5 transition-all duration-200 ${
                   active
                     ? 'bg-secondary-container text-on-secondary-container border-l-4 border-secondary shadow-sm'
                     : 'text-on-surface-variant hover:bg-surface-container-highest'
                 }`}
               >
-                <span className="material-symbols-outlined shrink-0">call</span>
-                <span className="text-label-md leading-tight text-left flex-1">{ATTEMPT_ORDINALS[n]} Attempt</span>
+                <span className="material-symbols-outlined shrink-0 w-6 flex justify-center text-[20px]">call</span>
+                <span className="text-label-md leading-tight text-left flex-1 font-medium">{ATTEMPT_ORDINALS[n]} Attempt</span>
                 <span
-                  className={`ml-auto shrink-0 px-2 py-0.5 rounded-full text-label-sm ${
+                  className={`ml-auto shrink-0 min-w-[28px] text-center px-2 py-0.5 rounded-full text-label-sm font-semibold ${
                     active ? 'bg-secondary text-on-secondary' : 'bg-surface-variant'
                   }`}
                 >
@@ -597,16 +617,16 @@ export default function Calling() {
         <li>
           <button
             onClick={() => handleAttemptNeededSelect('completed')}
-            className={`w-full flex items-start gap-3 rounded-lg px-4 py-2 transition-all duration-200 ${
+            className={`w-full flex items-center gap-3 rounded-lg px-4 py-2.5 transition-all duration-200 ${
               selectedAttemptNeeded === 'completed'
                 ? 'bg-secondary-container text-on-secondary-container border-l-4 border-secondary shadow-sm'
                 : 'text-on-surface-variant hover:bg-surface-container-highest'
             }`}
           >
-            <span className="material-symbols-outlined shrink-0">check_circle</span>
-            <span className="text-label-md leading-tight text-left flex-1">Completed Attempts</span>
+            <span className="material-symbols-outlined shrink-0 w-6 flex justify-center text-[20px]">check_circle</span>
+            <span className="text-label-md leading-tight text-left flex-1 font-medium">Completed Attempts</span>
             <span
-              className={`ml-auto shrink-0 px-2 py-0.5 rounded-full text-label-sm ${
+              className={`ml-auto shrink-0 min-w-[28px] text-center px-2 py-0.5 rounded-full text-label-sm font-semibold ${
                 selectedAttemptNeeded === 'completed' ? 'bg-secondary text-on-secondary' : 'bg-surface-variant'
               }`}
             >
@@ -660,20 +680,7 @@ export default function Calling() {
         </div>
       )}
 
-      {allPendingItems.length > 0 && (
-        <div className="mb-6">
-          <button
-            onClick={() => setShowPendingModal(true)}
-            className="bg-error-container border border-error text-on-error-container rounded-xl px-4 py-3 flex items-center gap-3 hover:brightness-110 transition-all"
-          >
-            <span className="material-symbols-outlined text-error">notifications_active</span>
-            <span className="text-left">
-              <span className="text-body-md font-semibold block">{allPendingItems.length} student{allPendingItems.length === 1 ? '' : 's'} to look up</span>
-              <span className="text-label-sm">{pendingActionStatuses.join(', ')}</span>
-            </span>
-          </button>
-        </div>
-      )}
+
 
       {showPendingModal && (
         <div
@@ -855,13 +862,13 @@ export default function Calling() {
                   </button>
                 </div>
               </div>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                 {statusActions.map((action) => (
                   <button
                     key={action.status}
                     onClick={() => handleStatusButtonClick(action.status)}
                     disabled={updatingStatus === action.status}
-                    className={`py-2 px-3 rounded-lg text-label-md transition-colors text-center shadow-sm ${action.className} ${
+                    className={`py-2 px-3 rounded-lg text-label-md font-semibold transition-colors text-center shadow-sm ${action.className} ${
                       updatingStatus === action.status ? 'opacity-60 cursor-wait' : ''
                     }`}
                   >
@@ -885,6 +892,12 @@ export default function Calling() {
                   placeholder="Enter any notes about this call or lead..."
                   rows="2"
                 />
+                {currentLead?.[12] && (
+                  <div className="bg-surface-container-high rounded-lg p-3 border border-outline-variant/50">
+                    <h4 className="text-label-sm text-on-surface-variant uppercase tracking-wider mb-1 font-semibold">Saved Notes</h4>
+                    <p className="text-body-md text-on-surface whitespace-pre-wrap">{currentLead[12]}</p>
+                  </div>
+                )}
               </div>
 
               <div className="bg-surface-container rounded-xl border border-outline-variant p-6 flex flex-col gap-3">
@@ -898,42 +911,36 @@ export default function Calling() {
                   {renderSlotHistory(9, 'Slot 3', '1:00 PM - 4:00 PM')}
                   {renderSlotHistory(10, 'Slot 4', '4:00 PM - 6:00 PM')}
                 </div>
-                {currentLead?.[12] && (
-                  <div className="bg-surface-container-high rounded-lg p-3">
-                    <h4 className="text-label-sm text-on-surface-variant uppercase tracking-wider mb-1">Saved Notes</h4>
-                    <p className="text-body-md text-on-surface whitespace-pre-wrap">{currentLead[12]}</p>
-                  </div>
-                )}
               </div>
             </div>
 
             {/* Sales Pitch */}
             <div className="flex flex-col gap-4">
-              <div className="bg-inverse-surface text-inverse-on-surface rounded-xl p-8 shadow-md border border-outline-variant h-full leading-relaxed text-body-lg">
+              <div className="bg-inverse-surface text-black rounded-xl p-8 shadow-md border border-outline-variant h-full leading-relaxed text-body-lg">
                 <p className="mb-4">Assalam o Alaikum!</p>
                 <p className="mb-4">
                   Aap ne WhatsApp par humse contact kiya tha regarding our{' '}
-                  <strong className="font-bold text-on-primary-container">Data Science Bootcamp</strong>. Kya aap is
+                  <strong className="font-bold text-black">Data Science Bootcamp</strong>. Kya aap is
                   bootcamp ke baare mein aur janna chahenge?
                 </p>
-                <p className="mb-2">Toh let me explain — yeh <strong className="font-bold">4-month ka complete bootcamp</strong> hai:</p>
+                <p className="mb-2">Toh let me explain — yeh <strong className="font-bold text-black">4-month ka complete bootcamp</strong> hai:</p>
                 <ul className="space-y-2 mb-6 ml-2">
                   <li className="flex items-start gap-2">
-                    <span className="text-primary mt-1">◆</span>
+                    <span className="text-black mt-1">◆</span>
                     <span>1st Month – Python programming: from basics to data handling</span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <span className="text-primary mt-1">◆</span>
+                    <span className="text-black mt-1">◆</span>
                     <span>2nd Month – Machine Learning: algorithms, model building</span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <span className="text-primary mt-1">◆</span>
+                    <span className="text-black mt-1">◆</span>
                     <span>3rd Month – Deep Learning: neural networks, CNNs</span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <span className="text-primary mt-1">◆</span>
+                    <span className="text-black mt-1">◆</span>
                     <span>
-                      4th Month – Generative AI: jisme aap apna <strong className="font-bold text-on-primary-container">khud ka chatbot</strong> build
+                      4th Month – Generative AI: jisme aap apna <strong className="font-bold text-black">khud ka chatbot</strong> build
                       kar saktay hain using advanced GenAI tools
                     </span>
                   </li>
@@ -941,8 +948,8 @@ export default function Calling() {
                 <p className="mb-4 flex items-start gap-2">
                   <span className="text-xl">✨</span>
                   <span>
-                    <strong className="font-bold">Assignments har week diye jate hain</strong> aur unka{' '}
-                    <strong className="font-bold">feedback within 1 hour</strong> mil jata hai — taake aap fast pace pe
+                    <strong className="font-bold text-black">Assignments har week diye jate hain</strong> aur unka{' '}
+                    <strong className="font-bold text-black">feedback within 1 hour</strong> mil jata hai — taake aap fast pace pe
                     improve kar sakein.
                   </span>
                 </p>
@@ -951,28 +958,28 @@ export default function Calling() {
                   Aapka current field kya hai?
                 </p>
                 <p className="mb-4 flex items-start gap-2">
-                  <span className="text-secondary mt-1">✔</span>
+                  <span className="text-black mt-1">✔</span>
                   <span>
-                    Agar aap <strong className="font-bold text-on-secondary-container">80% ya us se zyada score</strong>{' '}
-                    karte hain in assignments mein, toh aapko <strong className="font-bold">remote internship</strong>{' '}
-                    milti hai — jisse aapka <strong className="font-bold">professional experience</strong> build hota
+                    Agar aap <strong className="font-bold text-black">80% ya us se zyada score</strong>{' '}
+                    karte hain in assignments mein, toh aapko <strong className="font-bold text-black">remote internship</strong>{' '}
+                    milti hai — jisse aapka <strong className="font-bold text-black">professional experience</strong> build hota
                     hai.
                   </span>
                 </p>
                 <p className="mb-6 flex items-start gap-2">
                   <span className="text-xl">📝</span>
                   <span>
-                    Plus, hum aapki <strong className="font-bold">LinkedIn aur Resume optimization</strong> mein bhi
+                    Plus, hum aapki <strong className="font-bold text-black">LinkedIn aur Resume optimization</strong> mein bhi
                     help karte hain taake job market ke liye aap ready ho jayein.
                   </span>
                 </p>
                 <p className="mb-4">Kya aapko yeh information helpful lagi? Ya koi aur sawal hain aapke mind mein?</p>
                 <p className="mb-4">
                   If you&apos;re interested, just let me know — I&apos;ll share the{' '}
-                  <strong className="font-bold">registration link and next steps</strong> with you.
+                  <strong className="font-bold text-black">registration link and next steps</strong> with you.
                 </p>
                 <p className="flex items-center gap-2">
-                  <strong className="font-bold text-error-container">Limited seats hain</strong>, so don&apos;t miss this
+                  <strong className="font-bold text-black">Limited seats hain</strong>, so don&apos;t miss this
                   opportunity! 🚀
                 </p>
               </div>
