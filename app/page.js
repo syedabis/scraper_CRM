@@ -380,6 +380,14 @@ function computeStatsForRange(leads, range) {
       slotBreakdown[idx + 1][classifyLeadState(entry.status)]++;
     });
 
+    // A lead with zero calls logged has no 1st-attempt outcome to classify
+    // above, but it still belongs in Card 1's breakdown — otherwise it's
+    // invisible in the per-status rows even though the "still needed"
+    // count at the top of the card already includes it.
+    if (slotEntries.length === 0 && !TERMINAL_STATUSES.includes(status)) {
+      slotBreakdown[1].notCalled++;
+    }
+
     if (attempts < 1) return;
     const bucket = attempts >= 4 ? '4+' : String(attempts);
     bucketStats[bucket].total++;
@@ -1175,7 +1183,7 @@ export default function Home() {
                             </div>
                           </div>
                           <ul className="flex-1 flex flex-col justify-between text-[11px] font-medium text-muted">
-                            {LEAD_STATE_ORDER.filter((s) => s.key !== 'notCalled').map((s) => {
+                            {LEAD_STATE_ORDER.filter((s) => s.key !== 'notCalled' || n === 1).map((s) => {
                               const c = slotStates[s.key];
                               const p = stats.totalLeads > 0 ? Math.round((c / stats.totalLeads) * 100) : 0;
                               const isNotReceived = s.key === 'notReceived';

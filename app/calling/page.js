@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import AppShell from '../components/AppShell';
-import { getPendingActionsByStatus, filterLeadsNeedingAttempt } from '../lib/pendingConfirmations';
+import { getPendingActionsByStatus, filterLeadsNeedingAttempt, filterLeadsWithCompletedAttempts } from '../lib/pendingConfirmations';
 
 const ATTEMPT_ORDINALS = { 1: '1st', 2: '2nd', 3: '3rd', 4: '4th' };
 
@@ -146,7 +146,7 @@ export default function Calling() {
       // Preserve current position within whichever filter was active
       const currentRowNumber = currentLead?.[0];
       if (selectedAttemptNeeded) {
-        setFilteredLeads(filterLeadsNeedingAttempt(data, selectedAttemptNeeded));
+        setFilteredLeads(getAttemptFilterLeads(data, selectedAttemptNeeded));
       } else {
         filterLeadsByStatus(selectedStatus, data);
       }
@@ -184,10 +184,15 @@ export default function Calling() {
     filterLeadsByStatus(status);
   };
 
+  // n is 1-4 for the attempt tabs, or 'completed' for leads who've used all
+  // 4 slots without a final status.
+  const getAttemptFilterLeads = (leadsToFilter, n) =>
+    n === 'completed' ? filterLeadsWithCompletedAttempts(leadsToFilter) : filterLeadsNeedingAttempt(leadsToFilter, n);
+
   const handleAttemptNeededSelect = (n) => {
     setSelectedStatus('');
     setSelectedAttemptNeeded(n);
-    setFilteredLeads(filterLeadsNeedingAttempt(leads, n));
+    setFilteredLeads(getAttemptFilterLeads(leads, n));
     setCurrentIndex(0);
   };
 
@@ -268,6 +273,7 @@ export default function Calling() {
     () => [1, 2, 3, 4].map((n) => ({ n, count: filterLeadsNeedingAttempt(leads, n).length })),
     [leads]
   );
+  const completedAttemptsCount = useMemo(() => filterLeadsWithCompletedAttempts(leads).length, [leads]);
   const allPendingItems = useMemo(
     () =>
       pendingActionStatuses.flatMap((statusName) =>
@@ -556,6 +562,26 @@ export default function Calling() {
             </li>
           );
         })}
+        <li>
+          <button
+            onClick={() => handleAttemptNeededSelect('completed')}
+            className={`w-full flex items-start gap-3 rounded-lg px-4 py-2 transition-all duration-200 ${
+              selectedAttemptNeeded === 'completed'
+                ? 'bg-secondary-container text-on-secondary-container border-l-4 border-secondary shadow-sm'
+                : 'text-on-surface-variant hover:bg-surface-container-highest'
+            }`}
+          >
+            <span className="material-symbols-outlined shrink-0">check_circle</span>
+            <span className="text-label-md leading-tight text-left flex-1">Completed Attempts</span>
+            <span
+              className={`ml-auto shrink-0 px-2 py-0.5 rounded-full text-label-sm ${
+                selectedAttemptNeeded === 'completed' ? 'bg-secondary text-on-secondary' : 'bg-surface-variant'
+              }`}
+            >
+              {completedAttemptsCount}
+            </span>
+          </button>
+        </li>
       </ul>
     </div>
   );
@@ -664,7 +690,9 @@ export default function Calling() {
           <div className="bg-surface-container rounded-xl border border-outline-variant p-12 text-center">
             <h2 className="text-headline-md font-bold text-on-surface mb-2">No leads found</h2>
             <p className="text-body-md text-on-surface-variant">
-              {selectedAttemptNeeded
+              {selectedAttemptNeeded === 'completed'
+                ? 'Nobody has completed all 4 attempts without a final status right now.'
+                : selectedAttemptNeeded
                 ? `Nobody needs their ${ATTEMPT_ORDINALS[selectedAttemptNeeded]} attempt right now.`
                 : selectedStatus === 'New Leads'
                 ? 'No new leads available.'

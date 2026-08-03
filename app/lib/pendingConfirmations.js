@@ -66,23 +66,18 @@ function countFilledSlots(lead) {
   return SLOT_INDICES.filter((idx) => (lead[idx] || '').toString().trim() !== '').length;
 }
 
-// The 4th Attempt tab is narrower than the others — only leads who are
-// still just unanswered/unresolved (No Answer or Connected) belong there.
-// Anyone already on a more specific track (Follow Up, Registration, etc.)
-// is excluded from the 4th attempt tab even if they'd otherwise qualify.
-const ATTEMPT_4_ALLOWED_STATUSES = ['No Answer', 'Connected'];
-
 // Leads exactly ready for their Nth call attempt — active (non-terminal)
 // status and exactly N-1 attempts made so far (1st Attempt = nobody's
 // called yet, 2nd Attempt = only the 1st call is done, etc). This is a
-// precise stage match, not "N or fewer attempts so far". Returns the raw
-// lead rows (full row data), so callers can page through them with the
-// same detail view used elsewhere.
+// precise stage match, not "N or fewer attempts so far". A lead's current
+// status (Follow Up, Connected, etc.) never excludes it from a tab — it's
+// placed purely by how many attempts it has made. Returns the raw lead
+// rows (full row data), so callers can page through them with the same
+// detail view used elsewhere.
 export function filterLeadsNeedingAttempt(leads, n) {
   return (leads || []).filter((lead) => {
     const status = (lead[6] || '').trim();
     if (TERMINAL_STATUSES.includes(status)) return false;
-    if (n === 4 && !ATTEMPT_4_ALLOWED_STATUSES.includes(status)) return false;
     return countFilledSlots(lead) === n - 1;
   });
 }
@@ -96,4 +91,17 @@ export function getLeadsNeedingAttempt(leads, n) {
     phone: lead[5] || '',
     status: (lead[6] || '').trim() || 'New Lead',
   }));
+}
+
+// A lead is "done" for two different reasons, both counted here: it
+// reached a final status (Lost/Enrolled/Demo/etc — regardless of how many
+// attempts that took), or it used up all 4 call slots without ever
+// reaching one. Together with filterLeadsNeedingAttempt(1-4), this fully
+// partitions every lead into exactly one tab.
+export function filterLeadsWithCompletedAttempts(leads) {
+  return (leads || []).filter((lead) => {
+    const status = (lead[6] || '').trim();
+    if (TERMINAL_STATUSES.includes(status)) return true;
+    return countFilledSlots(lead) === 4;
+  });
 }
