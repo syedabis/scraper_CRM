@@ -86,7 +86,7 @@ export default function SendInvoicePage() {
             placeholder="Student Name"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="flex rounded-md border w-full h-12 !bg-white text-gray-900 placeholder:text-gray-500 border-gray-300 px-3 py-2 text-base focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+            className="flex rounded-md border w-full h-12 !bg-white text-gray-900 placeholder:text-gray-500 border-gray-300 px-3 py-2 text-base focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-transparent"
           />
           <input
             type="number"
@@ -95,7 +95,7 @@ export default function SendInvoicePage() {
             placeholder="Course Fees"
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
-            className="flex rounded-md border w-full h-12 !bg-white text-gray-900 placeholder:text-gray-500 border-gray-300 px-3 py-2 text-base focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+            className="flex rounded-md border w-full h-12 !bg-white text-gray-900 placeholder:text-gray-500 border-gray-300 px-3 py-2 text-base focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-transparent"
           />
           <input
             type="email"
@@ -103,7 +103,7 @@ export default function SendInvoicePage() {
             placeholder="Email Address"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="flex rounded-md border w-full h-12 !bg-white text-gray-900 placeholder:text-gray-500 border-gray-300 px-3 py-2 text-base focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+            className="flex rounded-md border w-full h-12 !bg-white text-gray-900 placeholder:text-gray-500 border-gray-300 px-3 py-2 text-base focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-transparent"
           />
           <input
             type="tel"
@@ -111,7 +111,7 @@ export default function SendInvoicePage() {
             placeholder="Phone Number"
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
-            className="flex rounded-md border w-full h-12 !bg-white text-gray-900 placeholder:text-gray-500 border-gray-300 px-3 py-2 text-base focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+            className="flex rounded-md border w-full h-12 !bg-white text-gray-900 placeholder:text-gray-500 border-gray-300 px-3 py-2 text-base focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-transparent"
           />
 
           <div>
@@ -124,21 +124,21 @@ export default function SendInvoicePage() {
               accept="image/*"
               required
               onChange={(e) => setScreenshot(e.target.files?.[0] || null)}
-              className="block w-full text-sm text-gray-600 border border-gray-300 rounded-md cursor-pointer file:mr-4 file:py-2.5 file:px-4 file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+              className="block w-full text-sm text-gray-600 border border-gray-300 rounded-md cursor-pointer file:mr-4 file:py-2.5 file:px-4 file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100"
             />
           </div>
 
           <button
             type="submit"
             disabled={submitting}
-            className="w-full h-12 text-white font-bold rounded-lg bg-indigo-600 hover:bg-indigo-700 shadow-lg hover:shadow-xl transform hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 disabled:hover:scale-100"
+            className="w-full h-12 text-white font-bold rounded-lg bg-green-600 hover:bg-green-700 shadow-lg hover:shadow-xl transform hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 disabled:hover:scale-100"
           >
             {submitting ? "Generating..." : "Generate Receipt"}
           </button>
         </form>
 
         <p className="text-center text-gray-600 mt-6">
-          <Link href="/" className="text-indigo-600 font-medium hover:underline">
+          <Link href="/" className="text-green-700 font-medium hover:underline">
             Back to Dashboard
           </Link>
         </p>

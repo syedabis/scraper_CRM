@@ -16,20 +16,20 @@
   --color-inverse-on-surface: #303038;
   --color-outline: #908fa0;
   --color-outline-variant: #464554;
-  --color-surface-tint: #c0c1ff;
-  --color-primary: #c0c1ff;
-  --color-on-primary: #1000a9;
-  --color-primary-container: #8083ff;
-  --color-on-primary-container: #0d0096;
-  --color-inverse-primary: #494bd6;
+  --color-surface-tint: #5ce46d;
+  --color-primary: #5ce46d;
+  --color-on-primary: #06280f;
+  --color-primary-container: #1f3d26;
+  --color-on-primary-container: #bdf5c4;
+  --color-inverse-primary: #2e7d4f;
   --color-secondary: #4edea3;
   --color-on-secondary: #003824;
   --color-secondary-container: #00a572;
   --color-on-secondary-container: #00311f;
-  --color-tertiary: #ffb783;
-  --color-on-tertiary: #4f2500;
-  --color-tertiary-container: #d97721;
-  --color-on-tertiary-container: #452000;
+  --color-tertiary: #5ce46d;
+  --color-on-tertiary: #06280f;
+  --color-tertiary-container: #1f3d26;
+  --color-on-tertiary-container: #bdf5c4;
   --color-error: #ffb4ab;
   --color-on-error: #690005;
   --color-error-container: #93000a;
@@ -38,15 +38,15 @@
   --color-on-info: #003547;
   --color-info-container: #0077b6;
   --color-on-info-container: #cdeeff;
-  --color-background: #03040b;
+  --color-background: #090d0b;
   --color-on-background: #e4e1ed;
   --color-surface-variant: #34343d;
 
-  /* Template reskin brand accents */
-  --color-brand-purple: #a855f7;
-  --color-brand-green: #10b981;
-  --color-brand-orange: #f97316;
-  --color-brand-blue: #3b82f6;
+  /* Template reskin brand accents — neon-green theme preview */
+  --color-brand-purple: #5ce46d;
+  --color-brand-green: #5ce46d;
+  --color-brand-orange: #5ce46d;
+  --color-brand-blue: #5ce46d;
   --color-brand-red: #ef4444;
   --color-muted: #8b949e;
   --color-dim: #6b7280;
@@ -195,10 +195,10 @@ body {
    Template reskin — glassmorphism, ambient background & effects
    ============================================================ */
 .glass-card {
-  background-color: rgba(14, 17, 30, 0.75);
+  background: linear-gradient(180deg, rgba(20, 29, 25, 0.8) 0%, rgba(13, 20, 17, 0.9) 100%);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 1px solid #202d26;
   border-radius: 12px;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
 }
@@ -210,12 +210,12 @@ body {
   z-index: 0;
   pointer-events: none;
   background:
-    /* Top-right deep magenta/purple glow */
-    radial-gradient(circle at 85% 0%, rgba(120, 40, 200, 0.15) 0%, transparent 45%),
-    /* Center-right faint blue glow */
-    radial-gradient(circle at 95% 40%, rgba(59, 130, 246, 0.05) 0%, transparent 40%),
+    /* Top-right neon green glow */
+    radial-gradient(circle at 85% 0%, rgba(92, 228, 109, 0.15) 0%, transparent 45%),
+    /* Center-right faint green glow */
+    radial-gradient(circle at 95% 40%, rgba(92, 228, 109, 0.05) 0%, transparent 40%),
     /* Left sidebar ambient glow */
-    radial-gradient(ellipse at 0% 50%, rgba(76, 29, 149, 0.12) 0%, transparent 35%);
+    radial-gradient(ellipse at 0% 50%, rgba(40, 100, 60, 0.12) 0%, transparent 35%);
 }
 
 /* Slow breathing purple glow in the background (grows + fades). */
@@ -237,7 +237,7 @@ body {
   pointer-events: none;
   border-radius: 9999px;
   filter: blur(90px);
-  background: radial-gradient(circle, rgba(139, 92, 246, 0.55) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(92, 228, 109, 0.5) 0%, transparent 70%);
   animation: bg-pulse 9s ease-in-out infinite;
   will-change: opacity, transform;
 }
@@ -300,10 +300,10 @@ body {
   pointer-events: none;
   opacity: 0.6;
 }
-.kpi-purple::before { background: linear-gradient(to top, rgba(168, 85, 247, 0.25), transparent); }
-.kpi-green::before { background: linear-gradient(to top, rgba(16, 185, 129, 0.25), transparent); }
-.kpi-orange::before { background: linear-gradient(to top, rgba(249, 115, 22, 0.25), transparent); }
-.kpi-blue::before { background: linear-gradient(to top, rgba(59, 130, 246, 0.25), transparent); }
+.kpi-purple::before { background: linear-gradient(to top, rgba(92, 228, 109, 0.25), transparent); }
+.kpi-green::before { background: linear-gradient(to top, rgba(92, 228, 109, 0.25), transparent); }
+.kpi-orange::before { background: linear-gradient(to top, rgba(92, 228, 109, 0.25), transparent); }
+.kpi-blue::before { background: linear-gradient(to top, rgba(92, 228, 109, 0.25), transparent); }
 .kpi-content { position: relative; z-index: 1; }
 
 /* Icon chips */
@@ -325,7 +325,7 @@ body {
 
 /* Sidebar glass surface */
 .sidebar-glass {
-  background: linear-gradient(180deg, rgba(8, 10, 20, 0.9) 0%, rgba(5, 7, 17, 0.95) 100%);
+  background: linear-gradient(180deg, rgba(9, 13, 11, 0.9) 0%, rgba(5, 8, 6, 0.95) 100%);
   border-right: 1px solid rgba(255, 255, 255, 0.06);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
@@ -333,10 +333,10 @@ body {
 
 /* Sidebar active nav item (template style) */
 .nav-item-active {
-  background: linear-gradient(90deg, rgba(168, 85, 247, 0.15) 0%, transparent 100%);
-  border-left: 3px solid #a855f7;
+  background: linear-gradient(90deg, rgba(92, 228, 109, 0.15) 0%, transparent 100%);
+  border-left: 3px solid #5ce46d;
   border-radius: 0 8px 8px 0;
-  color: #d8b4fe;
+  color: #a8e8b0;
 }
 
 /* Glowing progress bars */

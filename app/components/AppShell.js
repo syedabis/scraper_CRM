@@ -24,14 +24,14 @@ export default function AppShell({ title, search, sidebarExtra, sidebarFooter, h
         <div className="header-wave absolute top-0 left-0 w-full h-[250px]">
           <svg viewBox="0 0 1200 250" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
             {/* Deep blurred base glow */}
-            <path d="M 0,160 Q 300,180 500,100 T 900,40 T 1200,80" fill="none" stroke="rgba(147,51,234,0.4)" strokeWidth="15" style={{ filter: 'blur(15px)' }} />
+            <path d="M 0,160 Q 300,180 500,100 T 900,40 T 1200,80" fill="none" stroke="rgba(92,228,109,0.4)" strokeWidth="15" style={{ filter: 'blur(15px)' }} />
             {/* Mid-level bright blur */}
-            <path d="M 0,160 Q 300,180 500,100 T 900,40 T 1200,80" fill="none" stroke="rgba(192,132,252,0.6)" strokeWidth="6" style={{ filter: 'blur(6px)' }} />
+            <path d="M 0,160 Q 300,180 500,100 T 900,40 T 1200,80" fill="none" stroke="rgba(140,235,150,0.6)" strokeWidth="6" style={{ filter: 'blur(6px)' }} />
             {/* Sharp central light core */}
-            <path d="M 0,160 Q 300,180 500,100 T 900,40 T 1200,80" fill="none" stroke="rgba(243,232,255,0.9)" strokeWidth="1" />
-            {/* Secondary intersecting blue wave */}
-            <path d="M 100,130 Q 350,200 650,80 T 1100,20 T 1200,30" fill="none" stroke="rgba(59,130,246,0.3)" strokeWidth="8" style={{ filter: 'blur(8px)' }} />
-            <path d="M 100,130 Q 350,200 650,80 T 1100,20 T 1200,30" fill="none" stroke="rgba(147,197,253,0.6)" strokeWidth="1" />
+            <path d="M 0,160 Q 300,180 500,100 T 900,40 T 1200,80" fill="none" stroke="rgba(232,255,232,0.9)" strokeWidth="1" />
+            {/* Secondary intersecting green wave */}
+            <path d="M 100,130 Q 350,200 650,80 T 1100,20 T 1200,30" fill="none" stroke="rgba(62,207,142,0.3)" strokeWidth="8" style={{ filter: 'blur(8px)' }} />
+            <path d="M 100,130 Q 350,200 650,80 T 1100,20 T 1200,30" fill="none" stroke="rgba(180,245,200,0.6)" strokeWidth="1" />
           </svg>
         </div>
       </div>

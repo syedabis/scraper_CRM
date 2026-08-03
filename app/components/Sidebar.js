@@ -31,7 +31,7 @@ export default function Sidebar({ children, footerExtra, open = true }) {
       <Link
         href="/data-entry"
         className="w-full bg-brand-purple text-white py-2 px-4 rounded-lg text-label-md mb-6 hover:brightness-110 transition-all flex items-center justify-center gap-2"
-        style={{ boxShadow: "0 0 20px rgba(168,85,247,0.35)" }}
+        style={{ boxShadow: "0 0 20px rgba(92,228,109,0.35)" }}
       >
         <span className="material-symbols-outlined text-[18px]" style={{ fontVariationSettings: "'FILL' 1" }}>
           add

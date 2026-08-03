@@ -19,10 +19,10 @@ import { getPendingActionsByStatus } from './lib/pendingConfirmations';
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Filler, Tooltip);
 
 // ── Template reskin palette (canvas can't read CSS vars) ──────────────────────
-const C_PURPLE = '#a855f7';
-const C_GREEN = '#10b981';
-const C_ORANGE = '#f97316';
-const C_BLUE = '#3b82f6';
+const C_PURPLE = '#5ce46d';
+const C_GREEN = '#5ce46d';
+const C_ORANGE = '#5ce46d';
+const C_BLUE = '#5ce46d';
 const C_MUTED = '#8b949e';
 const C_GRID = 'rgba(255,255,255,0.04)';
 
@@ -57,7 +57,7 @@ const neonLinePlugin = {
     const color = chart.data.datasets[args.index]?.borderColor;
     const { ctx } = chart;
     ctx.save();
-    ctx.shadowColor = typeof color === 'string' ? color : 'rgba(168,85,247,0.9)';
+    ctx.shadowColor = typeof color === 'string' ? color : 'rgba(92,228,109,0.9)';
     ctx.shadowBlur = 14;
   },
   afterDatasetDraw(chart, args) {
@@ -74,7 +74,7 @@ const neonBarPlugin = {
     const color = chart.data.datasets[args.index]?.backgroundColor;
     const { ctx } = chart;
     ctx.save();
-    ctx.shadowColor = typeof color === 'string' ? color : 'rgba(168,85,247,0.9)';
+    ctx.shadowColor = typeof color === 'string' ? color : 'rgba(92,228,109,0.9)';
     ctx.shadowBlur = 12;
   },
   afterDatasetDraw(chart, args) {
@@ -570,15 +570,15 @@ function LeadsLineChart({ points, niceMax }) {
       {
         label: 'Total Leads',
         data: points.map((p) => p.total),
-        borderColor: C_PURPLE,
+        borderColor: '#ffffff',
         borderWidth: 2,
-        backgroundColor: (ctx) => vGradient(ctx, C_PURPLE, '66'),
+        backgroundColor: (ctx) => vGradient(ctx, '#ffffff', '66'),
         fill: true,
         tension: 0.4,
         spanGaps: true,
         pointRadius: 0,
         pointHoverRadius: 5,
-        pointBackgroundColor: C_PURPLE,
+        pointBackgroundColor: '#ffffff',
         pointBorderColor: '#fff',
         pointBorderWidth: 1.5,
       },
@@ -643,7 +643,7 @@ function AttemptsBarChart({ bucketStats }) {
       {
         label: 'Total',
         data: ATTEMPT_BUCKETS.map((b) => bucketStats[b].total),
-        backgroundColor: C_PURPLE,
+        backgroundColor: '#ffffff',
         borderRadius: { topLeft: 3, topRight: 3 },
         maxBarThickness: 16,
       },
@@ -742,10 +742,10 @@ function PendingRing({ paid, notPaying, pending }) {
   const dash = `${(fraction * C).toFixed(2)} ${C.toFixed(2)}`;
   const stops = (
     <>
-      <stop offset="0%" stopColor="#ff9d5c" />
-      <stop offset="35%" stopColor="#ec4899" />
-      <stop offset="70%" stopColor="#8b5cf6" />
-      <stop offset="100%" stopColor="#3b82f6" />
+      <stop offset="0%" stopColor="#8be86d" />
+      <stop offset="35%" stopColor="#6ee083" />
+      <stop offset="70%" stopColor="#5ce46d" />
+      <stop offset="100%" stopColor="#3ecf8e" />
     </>
   );
 
@@ -913,7 +913,7 @@ export default function Home() {
       value: stats.paid,
       delta: previousStats ? calcDelta(stats.paid, previousStats.paid) : null,
       icon: 'payments',
-      accent: 'orange',
+      accent: 'blue',
       series: timeSeries.points.map((p) => p.paid),
     },
     {
@@ -999,11 +999,11 @@ export default function Home() {
             <button
               onClick={() => setShowPendingModal(true)}
               className="glass-card p-3 flex items-center gap-3 hover:brightness-110 transition-all text-left"
-              style={{ borderColor: `${C_ORANGE}4D` }}
+              style={{ borderColor: `${C_GREEN}4D` }}
             >
               <span
                 className="icon-neon w-8 h-8 shrink-0 rounded-md flex items-center justify-center border"
-                style={{ backgroundColor: `${C_ORANGE}1A`, color: C_ORANGE, borderColor: `${C_ORANGE}33` }}
+                style={{ backgroundColor: `${C_GREEN}1A`, color: C_GREEN, borderColor: `${C_GREEN}33` }}
               >
                 <span className="material-symbols-outlined text-[16px]">notifications_active</span>
               </span>
@@ -1115,10 +1115,10 @@ export default function Home() {
 
                 <div className="flex justify-center gap-5 mt-2 text-[10px] text-muted font-medium">
                   <span className="flex items-center gap-1.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-brand-purple shadow-[0_0_6px_#a855f7]" /> Total Leads
+                    <span className="w-1.5 h-1.5 rounded-full bg-white shadow-[0_0_6px_#ffffff]" /> Total Leads
                   </span>
                   <span className="flex items-center gap-1.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-brand-green shadow-[0_0_6px_#10b981]" /> Converted
+                    <span className="w-1.5 h-1.5 rounded-full bg-brand-green shadow-[0_0_6px_#5ce46d]" /> Converted
                   </span>
                 </div>
               </div>
@@ -1142,10 +1142,10 @@ export default function Home() {
 
                 <div className="flex justify-center gap-3 mt-2 text-[9px] text-muted font-medium flex-wrap">
                   <span className="flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-[2px] bg-brand-purple shadow-[0_0_6px_#a855f7]" /> Total
+                    <span className="w-2 h-2 rounded-[2px] bg-white shadow-[0_0_6px_#ffffff]" /> Total
                   </span>
                   <span className="flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-[2px] bg-brand-green shadow-[0_0_6px_#10b981]" /> Converted (Demo, Paid, Confirmations)
+                    <span className="w-2 h-2 rounded-[2px] bg-brand-green shadow-[0_0_6px_#5ce46d]" /> Converted (Demo, Paid, Confirmations)
                   </span>
                 </div>
               </div>
@@ -1218,7 +1218,7 @@ export default function Home() {
                 <div className="relative z-10 flex justify-between items-start mb-6">
                   <div>
                     <h3 className="text-white text-[17px] font-semibold tracking-wide mb-3">Pending Installments</h3>
-                    <div className="text-[40px] font-bold text-[#ff9c5a] leading-none mb-1 tracking-tight">
+                    <div className="text-[40px] font-bold text-[#5ce46d] leading-none mb-1 tracking-tight">
                       <AnimatedNumber value={installmentStats.pending} />
                     </div>
                     <div className="text-[#9ca3af] text-[13px]">awaiting payment</div>
@@ -1239,7 +1239,7 @@ export default function Home() {
                 <div className="relative z-10 grid grid-cols-2 border-t border-white/5 pt-5 mt-6">
                   <div className="absolute left-1/2 top-[22px] bottom-1 w-px bg-white/5" />
                   <div className="pr-4">
-                    <div className="text-[#00df89] text-[24px] font-bold leading-none mb-1.5">
+                    <div className="text-[#5ce46d] text-[24px] font-bold leading-none mb-1.5">
                       <AnimatedNumber value={installmentStats.paid} />
                     </div>
                     <div className="text-[#9ca3af] text-[12px] font-medium tracking-wide">Paid</div>

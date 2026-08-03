@@ -64,7 +64,7 @@ export default function SignInPage() {
             placeholder="Email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="flex rounded-md border w-full h-12 !bg-white text-gray-900 placeholder:text-gray-500 border-gray-300 px-3 py-2 text-base focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+            className="flex rounded-md border w-full h-12 !bg-white text-gray-900 placeholder:text-gray-500 border-gray-300 px-3 py-2 text-base focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-transparent"
           />
 
           <div className="relative">
@@ -74,7 +74,7 @@ export default function SignInPage() {
               placeholder="Password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="flex rounded-md border w-full h-12 !bg-white text-gray-900 placeholder:text-gray-500 border-gray-300 px-3 py-2 pr-12 text-base focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              className="flex rounded-md border w-full h-12 !bg-white text-gray-900 placeholder:text-gray-500 border-gray-300 px-3 py-2 pr-12 text-base focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-transparent"
             />
             <button
               type="button"
@@ -91,21 +91,21 @@ export default function SignInPage() {
           <button
             type="submit"
             disabled={!isLoaded || submitting}
-            className="w-full h-12 text-white font-bold rounded-lg bg-indigo-600 hover:bg-indigo-700 shadow-lg hover:shadow-xl transform hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 disabled:hover:scale-100"
+            className="w-full h-12 text-white font-bold rounded-lg bg-green-600 hover:bg-green-700 shadow-lg hover:shadow-xl transform hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 disabled:hover:scale-100"
           >
             {submitting ? "Signing in..." : "Sign in"}
           </button>
         </form>
 
         <p className="text-center mt-3">
-          <Link href="/forgot-password" className="text-sm text-indigo-600 hover:underline">
+          <Link href="/forgot-password" className="text-sm text-green-700 hover:underline">
             Forgot password?
           </Link>
         </p>
 
         <p className="text-center text-gray-600 mt-6">
           Don&apos;t have an account?{" "}
-          <Link href="/sign-up" className="text-indigo-600 font-medium hover:underline">
+          <Link href="/sign-up" className="text-green-700 font-medium hover:underline">
             Sign up
           </Link>
         </p>
