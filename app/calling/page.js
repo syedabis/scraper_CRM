@@ -23,7 +23,6 @@ export default function Calling() {
   const [notes, setNotes] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
-  const [isSearching, setIsSearching] = useState(false);
   const [pendingStatus, setPendingStatus] = useState(null);
   const [statusDate, setStatusDate] = useState('');
   const [showPendingModal, setShowPendingModal] = useState(false);
@@ -42,6 +41,14 @@ export default function Calling() {
     'Enrolled': ['Paid'],
     'Lost': ['Client Lost'],
   };
+
+  // Reverse of STATUS_ALIASES — maps old pre-rename text back to today's
+  // category name, so a lead still carrying old status text highlights the
+  // right sidebar tab (and not nothing) when jumped to from search.
+  const CANONICAL_STATUS_BY_ALIAS = Object.entries(STATUS_ALIASES).reduce((acc, [canonical, aliases]) => {
+    aliases.forEach((alias) => { acc[alias] = canonical; });
+    return acc;
+  }, {});
 
   const leadCategories = [
     { name: 'New Leads', icon: 'group_add' },
@@ -380,43 +387,42 @@ export default function Calling() {
     setStatusDate('');
   };
 
-  // Search function for phone numbers
-  const handleSearch = async (query) => {
+  // Searches the already-loaded lead list by name or phone number (partial,
+  // case-insensitive for name; digits-only comparison for phone so dashes/
+  // spaces/country-code formatting differences don't block a match).
+  const handleSearch = (query) => {
     setSearchQuery(query);
 
-    if (!query.trim()) {
+    const trimmed = query.trim();
+    if (!trimmed) {
       setSearchResults([]);
-      setIsSearching(false);
       return;
     }
 
-    setIsSearching(true);
+    const queryLower = trimmed.toLowerCase();
+    const queryDigits = trimmed.replace(/\D/g, '');
 
-    try {
-      const response = await fetch('/api/fetch-leads?sheetName=Pretty');
-      const data = response.ok ? await response.json() : [];
+    const results = leads.filter((lead) => {
+      const name = (lead[3] || '').toString().toLowerCase();
+      const phoneDigits = (lead[5] || '').toString().replace(/\D/g, '');
+      const nameMatch = name.includes(queryLower);
+      const phoneMatch = queryDigits.length > 0 && phoneDigits.includes(queryDigits);
+      return nameMatch || phoneMatch;
+    });
 
-      // Search through leads by phone number (index 5)
-      const results = data.filter(lead => {
-        const phoneNumber = lead[5] || '';
-        return phoneNumber.toString().includes(query.toString());
-      });
-
-      setSearchResults(results);
-    } catch (error) {
-      console.error('Error searching leads:', error);
-      setSearchResults([]);
-    } finally {
-      setIsSearching(false);
-    }
+    setSearchResults(results.slice(0, 20));
   };
 
-  // Function to navigate to a specific lead from search results
-  const navigateToLead = async (lead) => {
+  // Jumps to a search result exactly like clicking it in its own tab would:
+  // re-derive the category it belongs to (clearing any attempt-tab
+  // selection so the sidebar highlight and Last Reached column don't stay
+  // stuck on the tab the user searched from) and select its position there.
+  const navigateToLead = (lead) => {
     const leadRowNumber = lead[0];
-    const leadStatus = lead[6] || 'New Leads';
+    const rawStatus = (lead[6] || '').trim();
+    const leadStatus = rawStatus ? (CANONICAL_STATUS_BY_ALIAS[rawStatus] || rawStatus) : 'New Leads';
 
-    // Use the returned filtered array directly
+    setSelectedAttemptNeeded(null);
     const filtered = filterLeadsByStatus(leadStatus, leads);
     const filteredIndex = filtered.findIndex(l => l[0] === leadRowNumber);
     if (filteredIndex !== -1) {
@@ -488,7 +494,7 @@ export default function Calling() {
       <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-sm">search</span>
       <input
         className="w-full bg-surface-container-high border border-outline-variant rounded-full py-2 pl-10 pr-4 text-body-md text-on-surface focus:border-primary focus:ring-1 focus:ring-primary transition-all outline-none"
-        placeholder="Search by phone number..."
+        placeholder="Search by name or phone number..."
         type="text"
         value={searchQuery}
         onChange={(e) => handleSearch(e.target.value)}
@@ -501,8 +507,8 @@ export default function Calling() {
               onClick={() => navigateToLead(lead)}
               className="w-full p-3 text-left hover:bg-surface-container-highest border-b border-outline-variant last:border-b-0 transition-colors"
             >
-              <div className="text-on-surface text-body-md">{lead[5] || 'No Phone'}</div>
               <div className="text-primary text-label-sm">{lead[3] || 'No Name'}</div>
+              <div className="text-on-surface text-body-md">{lead[5] || 'No Phone'}</div>
               <div className="flex justify-between items-center">
                 <span className="text-on-surface-variant text-label-sm">{lead[6] || 'New Lead'}</span>
               </div>
@@ -510,14 +516,9 @@ export default function Calling() {
           ))}
         </div>
       )}
-      {searchQuery && !isSearching && searchResults.length === 0 && (
+      {searchQuery && searchResults.length === 0 && (
         <div className="absolute top-full left-0 right-0 mt-1 bg-surface-container-high border border-outline-variant rounded-lg shadow-lg z-50 p-3">
           <div className="text-on-surface-variant text-center text-body-md">No leads found</div>
-        </div>
-      )}
-      {isSearching && (
-        <div className="absolute top-full left-0 right-0 mt-1 bg-surface-container-high border border-outline-variant rounded-lg shadow-lg z-50 p-3">
-          <div className="text-on-surface-variant text-center text-body-md">Searching...</div>
         </div>
       )}
     </div>
