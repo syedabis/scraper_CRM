@@ -30,8 +30,10 @@ const STATUSES_REQUIRING_DATE = ['Enrolled', 'Payment Pending (Confirmation)'];
 const SLOT_COLUMN = { 'Slot 1': 'G', 'Slot 2': 'H', 'Slot 3': 'I', 'Slot 4': 'J' };
 const SLOT_INDEX = { G: 6, H: 7, I: 8, J: 9 }; // within A:R
 
-// Column O accumulates total talk time in minutes. Kept as a number rather than
-// "12m 40s" so it can be summed and sorted in the sheet and on the dashboard.
+// Column O accumulates total talk time in whole seconds. Seconds rather than
+// minutes because minutes have to be rounded, and the rounding error compounds
+// on every call until the total no longer matches the sum of the call-logs
+// rows. An integer count of seconds stays exact and still sums and sorts.
 const TOTAL_TALK_INDEX = 14; // O within A:R
 
 /**
@@ -116,8 +118,8 @@ export async function POST(request) {
     );
     const attempts = slotValues.reduce((sum, v) => sum + splitSlotEntries(v).length, 0);
 
-    const previousTotalMinutes = parseFloat(rowData[TOTAL_TALK_INDEX]) || 0;
-    const newTotalMinutes = Math.round((previousTotalMinutes + duration / 60) * 10) / 10;
+    const previousTotalSeconds = parseInt(rowData[TOTAL_TALK_INDEX], 10) || 0;
+    const newTotalSeconds = previousTotalSeconds + duration;
 
     const data = [
       { range: `${tab}!F${rowIndex}`, values: [[status]] },
@@ -137,7 +139,7 @@ export async function POST(request) {
       data.push({ range: `${tab}!N${rowIndex}`, values: [[value]] });
     }
     if (duration > 0) {
-      data.push({ range: `${tab}!O${rowIndex}`, values: [[newTotalMinutes]] });
+      data.push({ range: `${tab}!O${rowIndex}`, values: [[newTotalSeconds]] });
       data.push({ range: `${tab}!P${rowIndex}`, values: [[formatDuration(duration)]] });
       data.push({ range: `${tab}!Q${rowIndex}`, values: [[stamp]] });
     }
@@ -190,7 +192,7 @@ export async function POST(request) {
     return NextResponse.json({
       success: true,
       attempts,
-      totalTalkMinutes: newTotalMinutes,
+      totalTalkSeconds: newTotalSeconds,
       callLogged,
     });
   } catch (error) {
