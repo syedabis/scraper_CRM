@@ -109,3 +109,28 @@ export function pakistanDate(date = new Date()) {
   // en-CA gives YYYY-MM-DD, which sorts and compares as a plain string.
   return date.toLocaleDateString('en-CA', { timeZone: 'Asia/Karachi' });
 }
+
+// Turns a stamp written by pakistanTimestamp() — "8/5/2026, 1:10:12 PM" — back
+// into epoch milliseconds. Those are Karachi wall-clock readings, so they have
+// to be shifted by the +5 offset to be comparable with the ISO timestamps the
+// session log stores. Pakistan has no DST, so the offset is a constant.
+const KARACHI_OFFSET_MS = 5 * 60 * 60 * 1000;
+
+export function parsePakistanTimestamp(value) {
+  const match = (value || '')
+    .toString()
+    .match(/(\d{1,2})\/(\d{1,2})\/(\d{4}),?\s+(\d{1,2}):(\d{2}):(\d{2})\s*(AM|PM)/i);
+  if (!match) return null;
+  const [, month, day, year, rawHour, minute, second, meridiem] = match;
+  let hour = parseInt(rawHour, 10) % 12;
+  if (/pm/i.test(meridiem)) hour += 12;
+  const asUtc = Date.UTC(
+    Number(year),
+    Number(month) - 1,
+    Number(day),
+    hour,
+    Number(minute),
+    Number(second)
+  );
+  return asUtc - KARACHI_OFFSET_MS;
+}

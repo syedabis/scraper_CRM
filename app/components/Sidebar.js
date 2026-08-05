@@ -8,6 +8,7 @@ const NAV_ITEMS = [
   { href: "/calling", label: "Calling", icon: "call" },
   { href: "/data-entry", label: "Data Entry", icon: "assignment" },
   { href: "/send-invoice", label: "Send Invoice", icon: "receipt_long" },
+  { href: "/agent-tracking", label: "Agent Tracking", icon: "badge" },
   { href: "/admin", label: "Admin Panel", icon: "admin_panel_settings" },
 ];
 
