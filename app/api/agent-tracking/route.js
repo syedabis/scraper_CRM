@@ -14,6 +14,11 @@ import {
 
 const sheets = getSheetsClient();
 
+// "Not Received" is the pre-rename spelling still sitting in older rows, so
+// counting only the current name would quietly undercount the history.
+const NO_ANSWER_STATUSES = ['No Answer', 'Not Received'];
+const isNoAnswer = (status) => NO_ANSWER_STATUSES.includes((status || '').trim());
+
 // Both clients read this one endpoint — the portal for everyone, the mobile
 // app with self=true for the signed-in agent's own history. Same calculation
 // either way, so the phone and the portal can never show different numbers for
@@ -82,6 +87,8 @@ export async function GET(request) {
       leadRow: r[5] || '',
       at: parsePakistanTimestamp(r[0]),
       durationSeconds: parseInt(r[10], 10) || 0,
+      // Column M: exactly the status button the agent pressed after the call.
+      status: (r[12] || '').trim(),
     }));
 
     // Someone who made calls without ever clocking in still belongs in the
@@ -114,6 +121,7 @@ export async function GET(request) {
           breakMs: s.breakMs,
           breaks: s.breaks,
           calls: within.length,
+          noAnswer: within.filter((c) => isNoAnswer(c.status)).length,
           leads: new Set(within.map((c) => c.leadRow)).size,
           talkSeconds: within.reduce((sum, c) => sum + c.durationSeconds, 0),
         };
@@ -152,6 +160,7 @@ export async function GET(request) {
           workedMs: meaningful.reduce((s, x) => s + x.workedMs, 0),
           breakMs: meaningful.reduce((s, x) => s + x.breakMs, 0),
           calls: agentCalls.length,
+          noAnswer: agentCalls.filter((c) => isNoAnswer(c.status)).length,
           leads: new Set(agentCalls.map((c) => c.leadRow)).size,
           talkSeconds: agentCalls.reduce((s, c) => s + c.durationSeconds, 0),
           untrackedCalls: agentCalls.length - tracked.size,

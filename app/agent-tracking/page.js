@@ -203,7 +203,7 @@ export default function AgentTracking() {
                 )}
               </div>
 
-              <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+              <div className="grid grid-cols-2 md:grid-cols-7 gap-3">
                 <Stat label="Days worked" value={a.totals.daysWorked} />
                 <Stat
                   label="Worked (excl. breaks)"
@@ -216,6 +216,11 @@ export default function AgentTracking() {
                   accent="text-brand-orange"
                 />
                 <Stat label="Calls made" value={a.totals.calls} />
+                <Stat
+                  label="No answer"
+                  value={a.totals.noAnswer}
+                  accent="text-brand-orange"
+                />
                 <Stat label="Leads covered" value={a.totals.leads} />
                 <Stat
                   label="Talk time"
@@ -230,17 +235,18 @@ export default function AgentTracking() {
                 </p>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse min-w-[680px]">
+                  <table className="w-full text-left border-collapse table-fixed min-w-[820px]">
                     <thead>
                       <tr className="text-[10px] uppercase tracking-wider text-dim border-b border-white/10">
-                        <th className="py-2 pr-4 font-medium">Date</th>
-                        <th className="py-2 pr-4 font-medium">Started</th>
-                        <th className="py-2 pr-4 font-medium">Ended</th>
-                        <th className="py-2 pr-4 font-medium">Worked</th>
-                        <th className="py-2 pr-4 font-medium">Break</th>
-                        <th className="py-2 pr-4 font-medium text-right">Calls</th>
-                        <th className="py-2 pr-4 font-medium text-right">Leads</th>
-                        <th className="py-2 font-medium text-right">Talk time</th>
+                        <th className="py-2 pr-4 font-medium w-[15%]">Date</th>
+                        <th className="py-2 pr-4 font-medium w-[11%]">Started</th>
+                        <th className="py-2 pr-4 font-medium w-[11%]">Ended</th>
+                        <th className="py-2 pr-4 font-medium w-[11%]">Worked</th>
+                        <th className="py-2 pr-4 font-medium w-[15%]">Break</th>
+                        <th className="py-2 pr-4 font-medium text-right w-[11%]">No answer</th>
+                        <th className="py-2 pr-4 font-medium text-right w-[9%]">Calls</th>
+                        <th className="py-2 pr-4 font-medium text-right w-[8%]">Leads</th>
+                        <th className="py-2 font-medium text-right w-[9%]">Talk time</th>
                       </tr>
                     </thead>
                     <tbody className="text-gray-300">
@@ -285,6 +291,9 @@ export default function AgentTracking() {
                             </td>
                             <td className="py-2.5 pr-4 tabular-nums">
                               {s.breakMs > 0 ? `${formatDuration(s.breakMs)} (${s.breaks})` : '—'}
+                            </td>
+                            <td className="py-2.5 pr-4 text-right tabular-nums text-brand-orange">
+                              {s.noAnswer || '—'}
                             </td>
                             <td className="py-2.5 pr-4 text-right tabular-nums font-semibold text-white">
                               {s.calls}
