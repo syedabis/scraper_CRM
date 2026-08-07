@@ -1,3 +1,24 @@
+// The two lead pools. They are kept deliberately separate: status categories
+// and the attempt tabs only ever show the primary sheet, and "Agent leads" is
+// its own list. Merging them would mix two different books of business.
+export const PRIMARY_SOURCE = 'Pretty';
+export const AGENT_SOURCE = 'Agent leads';
+export const LEAD_SOURCES = [PRIMARY_SOURCE, AGENT_SOURCE];
+
+// Appended by the client after fetching, not present in the sheet. fetch-leads
+// prepends the row number, so columns A-R occupy 1..18 and this sits after.
+export const SOURCE_INDEX = 19;
+
+export const sourceOf = (lead) => lead?.[SOURCE_INDEX] || PRIMARY_SOURCE;
+
+// A row number is not unique across tabs — row 5 exists in both — so anything
+// that identifies a lead has to include the sheet it came from.
+export const leadKey = (lead) => (lead ? `${sourceOf(lead)}#${lead[0]}` : null);
+
+export function filterBySource(leads, source) {
+  return (leads || []).filter((lead) => sourceOf(lead) === source);
+}
+
 // Column N holds the pending-action date — the date a student promised to
 // pay, was scheduled for a demo, or should be followed up by. fetch-leads
 // prepends the row number, so it lands at this array index.
@@ -104,7 +125,7 @@ const TERMINAL_STATUSES = [
 // rows (full row data), so callers can page through them with the same
 // detail view used elsewhere.
 export function filterLeadsNeedingAttempt(leads, n) {
-  return (leads || []).filter((lead) => {
+  return filterBySource(leads, PRIMARY_SOURCE).filter((lead) => {
     const status = (lead[6] || '').trim();
     if (TERMINAL_STATUSES.includes(status)) return false;
     return getAttemptCount(lead) === n - 1;
@@ -129,7 +150,7 @@ export function getLeadsNeedingAttempt(leads, n) {
 // count past 4). Together with filterLeadsNeedingAttempt(1-4), this fully
 // partitions every lead into exactly one tab.
 export function filterLeadsWithCompletedAttempts(leads) {
-  return (leads || []).filter((lead) => {
+  return filterBySource(leads, PRIMARY_SOURCE).filter((lead) => {
     const status = (lead[6] || '').trim();
     if (TERMINAL_STATUSES.includes(status)) return true;
     return getAttemptCount(lead) >= 4;

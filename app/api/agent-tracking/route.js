@@ -119,11 +119,20 @@ export async function GET(request) {
         };
       });
 
+      // Drop fragments: a session with no worked time, no break and no calls is
+      // not a shift, it is the residue of Start being tapped twice — the second
+      // tap closes the first session the instant it opened. They carry no
+      // information and bury the real rows. A running session is always kept,
+      // since it legitimately has nothing in it yet.
+      const meaningful = detailed.filter(
+        (s) => s.inProgress || s.calls > 0 || s.workedMs >= 1000 || s.breakMs > 0
+      );
+
       // Newest first — the day just worked is the one people look at.
-      detailed.sort((a, b) => (a.startedAt < b.startedAt ? 1 : -1));
+      meaningful.sort((a, b) => (a.startedAt < b.startedAt ? 1 : -1));
 
       const tracked = new Set();
-      detailed.forEach((s) => {
+      meaningful.forEach((s) => {
         agentCalls.forEach((c) => {
           if (
             c.at !== null &&
@@ -138,16 +147,16 @@ export async function GET(request) {
       return {
         agent,
         email,
-        sessions: detailed,
+        sessions: meaningful,
         totals: {
-          workedMs: detailed.reduce((s, x) => s + x.workedMs, 0),
-          breakMs: detailed.reduce((s, x) => s + x.breakMs, 0),
+          workedMs: meaningful.reduce((s, x) => s + x.workedMs, 0),
+          breakMs: meaningful.reduce((s, x) => s + x.breakMs, 0),
           calls: agentCalls.length,
           leads: new Set(agentCalls.map((c) => c.leadRow)).size,
           talkSeconds: agentCalls.reduce((s, c) => s + c.durationSeconds, 0),
           untrackedCalls: agentCalls.length - tracked.size,
-          sessionCount: detailed.length,
-          daysWorked: new Set(detailed.map((s) => s.date)).size,
+          sessionCount: meaningful.length,
+          daysWorked: new Set(meaningful.map((s) => s.date)).size,
         },
       };
     });

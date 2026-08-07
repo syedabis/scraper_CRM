@@ -2,7 +2,19 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import AppShell from '../components/AppShell';
-import { getPendingActionsByStatus, filterLeadsNeedingAttempt, filterLeadsWithCompletedAttempts, splitSlotEntries } from '../lib/pendingConfirmations';
+import {
+  getPendingActionsByStatus,
+  filterLeadsNeedingAttempt,
+  filterLeadsWithCompletedAttempts,
+  splitSlotEntries,
+  AGENT_SOURCE,
+  PRIMARY_SOURCE,
+  LEAD_SOURCES,
+  SOURCE_INDEX,
+  filterBySource,
+  leadKey,
+  sourceOf,
+} from '../lib/pendingConfirmations';
 
 const ATTEMPT_ORDINALS = { 1: '1st', 2: '2nd', 3: '3rd', 4: '4th' };
 
@@ -10,7 +22,6 @@ export default function Calling() {
   const [leads, setLeads] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [selectedOwner, setSelectedOwner] = useState('Pretty');
   const [tooltipMessage, setTooltipMessage] = useState('');
   const [showTooltip, setShowTooltip] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState('');
@@ -27,6 +38,7 @@ export default function Calling() {
   const [statusDate, setStatusDate] = useState('');
   const [showPendingModal, setShowPendingModal] = useState(false);
   const [selectedAttemptNeeded, setSelectedAttemptNeeded] = useState(null);
+  const [selectedSource, setSelectedSource] = useState(null);
 
   const STATUSES_REQUIRING_DATE = ['Enrolled', 'Payment Pending (Confirmation)', 'Demo', 'Follow Up'];
 
@@ -108,25 +120,54 @@ export default function Calling() {
     return () => clearInterval(interval);
   }, []);
 
-  // Always work off the "Pretty" sheet
   useEffect(() => {
-    fetchLeads('Pretty').catch((error) => {
+    fetchLeads().catch((error) => {
       setTooltipMessage(error.message || 'Failed to load leads');
       setShowTooltip(true);
       setTimeout(() => setShowTooltip(false), 4000);
     });
   }, []);
 
-  const fetchLeads = async (owner) => {
-    if (!owner) return [];
+  // Loads every pool and tags each row with the sheet it came from. The tag is
+  // essential: fetch-leads returns a sheet row number and row 5 exists in both
+  // tabs, so without it a status could be written onto an unrelated lead.
+  const loadAllPools = async () => {
+    const results = await Promise.allSettled(
+      LEAD_SOURCES.map(async (sheet) => {
+        const response = await fetch(`/api/fetch-leads?sheetName=${encodeURIComponent(sheet)}`);
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.error || `Failed to fetch ${sheet}`);
+        }
+        return response.json();
+      })
+    );
+
+    const all = [];
+    const failed = [];
+    results.forEach((result, i) => {
+      const sheet = LEAD_SOURCES[i];
+      if (result.status !== 'fulfilled') {
+        failed.push(sheet);
+        return;
+      }
+      (Array.isArray(result.value) ? result.value : []).forEach((row) => {
+        const tagged = [...row];
+        while (tagged.length < SOURCE_INDEX) tagged.push('');
+        tagged[SOURCE_INDEX] = sheet;
+        all.push(tagged);
+      });
+    });
+
+    // One pool failing must not wipe the other.
+    if (failed.length === LEAD_SOURCES.length) throw new Error('Failed to fetch leads');
+    return all;
+  };
+
+  const fetchLeads = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`/api/fetch-leads?sheetName=${encodeURIComponent(owner)}`);
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Failed to fetch leads');
-      }
-      const data = await response.json();
+      const data = await loadAllPools();
       setLeads(data);
       return data; // Do NOT call filterLeadsByStatus here!
     } catch (error) {
@@ -139,31 +180,28 @@ export default function Calling() {
   };
 
   // New function to re-fetch leads while preserving current status and position
-  const refreshLeads = async (owner) => {
-    if (!owner) return;
-
+  const refreshLeads = async () => {
     try {
-      const response = await fetch(`/api/fetch-leads?sheetName=${encodeURIComponent(owner)}`);
-      if (!response.ok) {
-        throw new Error('Failed to fetch leads');
-      }
-      const data = await response.json();
+      const data = await loadAllPools();
       setLeads(data);
 
       // Preserve current position within whichever filter was active
-      const currentRowNumber = currentLead?.[0];
-      if (selectedAttemptNeeded) {
-        setFilteredLeads(getAttemptFilterLeads(data, selectedAttemptNeeded));
+      const currentKey = leadKey(currentLead);
+      let nextFiltered;
+      if (selectedSource) {
+        nextFiltered = filterBySource(data, selectedSource);
+        setFilteredLeads(nextFiltered);
+      } else if (selectedAttemptNeeded) {
+        nextFiltered = getAttemptFilterLeads(data, selectedAttemptNeeded);
+        setFilteredLeads(nextFiltered);
       } else {
-        filterLeadsByStatus(selectedStatus, data);
+        nextFiltered = filterLeadsByStatus(selectedStatus, data);
       }
 
-      // Find and set the same lead position
-      if (currentRowNumber) {
-        const newIndex = filteredLeads.findIndex(lead => lead[0] === currentRowNumber);
-        if (newIndex !== -1) {
-          setCurrentIndex(newIndex);
-        }
+      // Matched on the composite key — a bare row number is ambiguous now.
+      if (currentKey) {
+        const newIndex = nextFiltered.findIndex((lead) => leadKey(lead) === currentKey);
+        if (newIndex !== -1) setCurrentIndex(newIndex);
       }
     } catch (error) {
       console.error('Error refreshing leads:', error);
@@ -172,12 +210,15 @@ export default function Calling() {
 
   const filterLeadsByStatus = (status, leadsToFilter = leads) => {
     setSelectedStatus(status);
+    // Status categories only ever show the primary sheet — "Agent leads" is a
+    // separate book and gets its own entry in the sidebar.
+    const pool = filterBySource(leadsToFilter, PRIMARY_SOURCE);
     let filtered;
     if (status === 'New Leads') {
-      filtered = leadsToFilter.filter(lead => !lead[6] || lead[6].trim() === '');
+      filtered = pool.filter(lead => !lead[6] || lead[6].trim() === '');
     } else {
       const matchNames = [status, ...(STATUS_ALIASES[status] || [])].map((s) => s.trim().toLowerCase());
-      filtered = leadsToFilter.filter(
+      filtered = pool.filter(
         lead => matchNames.includes((lead[6] || '').trim().toLowerCase())
       );
     }
@@ -188,7 +229,18 @@ export default function Calling() {
 
   const handleStatusSelect = (status) => {
     setSelectedAttemptNeeded(null);
+    setSelectedSource(null);
     filterLeadsByStatus(status);
+  };
+
+  // A source tab is a pool, not a stage — it shows every lead in that sheet
+  // whatever its status.
+  const handleSourceSelect = (source) => {
+    setSelectedStatus('');
+    setSelectedAttemptNeeded(null);
+    setSelectedSource(source);
+    setFilteredLeads(filterBySource(leads, source));
+    setCurrentIndex(0);
   };
 
   // n is 1-4 for the attempt tabs, or 'completed' for leads who've used all
@@ -198,6 +250,7 @@ export default function Calling() {
 
   const handleAttemptNeededSelect = (n) => {
     setSelectedStatus('');
+    setSelectedSource(null);
     setSelectedAttemptNeeded(n);
     setFilteredLeads(getAttemptFilterLeads(leads, n));
     setCurrentIndex(0);
@@ -214,7 +267,7 @@ export default function Calling() {
   };
 
   const handleSaveEdit = async () => {
-    if (!currentLead || !selectedOwner) return;
+    if (!currentLead) return;
 
     setUpdatingLead(true);
     try {
@@ -225,7 +278,7 @@ export default function Calling() {
         },
         body: JSON.stringify({
           rowIndex: currentLead[0],
-          owner: selectedOwner,
+          owner: sourceOf(currentLead),
           name: editData.name,
           email: editData.email,
           phone: editData.phone
@@ -242,7 +295,7 @@ export default function Calling() {
       setTimeout(() => setShowTooltip(false), 3000);
 
       // Re-fetch leads to get the latest data
-      await refreshLeads(selectedOwner);
+      await refreshLeads();
 
       setIsEditing(false);
     } catch (error) {
@@ -305,20 +358,13 @@ export default function Calling() {
       return;
     }
 
-    if (!selectedOwner) {
-      setTooltipMessage('No owner selected');
-      setShowTooltip(true);
-      setTimeout(() => setShowTooltip(false), 3000);
-      return;
-    }
-
     try {
       setUpdatingStatus(status);
       const rowNumber = currentLead[0];
       const payload = {
         rowIndex: rowNumber,
         status,
-        owner: selectedOwner,
+        owner: sourceOf(currentLead),
         timeSlot: currentTimeSlot,
         notes: notes.trim(),
         ...(dateForStatus ? { statusDate: dateForStatus } : {}),
@@ -348,7 +394,7 @@ export default function Calling() {
       setStatusDate('');
 
       // Re-fetch leads to get the latest slot column values
-      await refreshLeads(selectedOwner);
+      await refreshLeads();
 
       // Small delay to ensure UI updates properly
       await new Promise(resolve => setTimeout(resolve, 500));
@@ -423,8 +469,21 @@ export default function Calling() {
     const leadStatus = rawStatus ? (CANONICAL_STATUS_BY_ALIAS[rawStatus] || rawStatus) : 'New Leads';
 
     setSelectedAttemptNeeded(null);
-    const filtered = filterLeadsByStatus(leadStatus, leads);
-    const filteredIndex = filtered.findIndex(l => l[0] === leadRowNumber);
+    // Status categories hold only the primary sheet, so an Agent lead has to be
+    // opened in its own pool or it would be nowhere to be found.
+    const source = sourceOf(lead);
+    let filtered;
+    if (source !== PRIMARY_SOURCE) {
+      setSelectedStatus('');
+      setSelectedSource(source);
+      filtered = filterBySource(leads, source);
+      setFilteredLeads(filtered);
+    } else {
+      setSelectedSource(null);
+      filtered = filterLeadsByStatus(leadStatus, leads);
+    }
+    const key = leadKey(lead);
+    const filteredIndex = filtered.findIndex(l => leadKey(l) === key);
     if (filteredIndex !== -1) {
       setCurrentIndex(filteredIndex);
     } else {
@@ -435,11 +494,12 @@ export default function Calling() {
   };
 
   const getCategoryCount = (name) => {
+    const pool = filterBySource(leads, PRIMARY_SOURCE);
     if (name === 'New Leads') {
-      return leads.filter(lead => !lead[6] || lead[6].trim() === '').length;
+      return pool.filter(lead => !lead[6] || lead[6].trim() === '').length;
     }
     const matchNames = [name, ...(STATUS_ALIASES[name] || [])];
-    return leads.filter(lead => matchNames.includes(lead[6])).length;
+    return pool.filter(lead => matchNames.includes(lead[6])).length;
   };
 
   // Each slot cell (G-J) is a fixed time-of-day window, not an attempt
@@ -583,6 +643,34 @@ export default function Calling() {
             </li>
           );
         })}
+
+        {/* Its own pool, listed after the status categories. Shows every lead
+            in that sheet regardless of status — it is a book of business, not
+            a stage in the funnel. */}
+        <li key={AGENT_SOURCE}>
+          <button
+            onClick={() => handleSourceSelect(AGENT_SOURCE)}
+            className={`w-full flex items-center gap-3 rounded-lg px-4 py-2.5 transition-all duration-200 ${
+              selectedSource === AGENT_SOURCE
+                ? 'bg-secondary-container text-on-secondary-container border-l-4 border-secondary shadow-sm'
+                : 'text-on-surface-variant hover:bg-surface-container-highest'
+            }`}
+          >
+            <span className="material-symbols-outlined shrink-0 w-6 flex justify-center text-[20px]">
+              folder_shared
+            </span>
+            <span className="text-label-md leading-tight text-left flex-1 font-medium">
+              {AGENT_SOURCE}
+            </span>
+            <span
+              className={`ml-auto shrink-0 min-w-[28px] text-center px-2 py-0.5 rounded-full text-label-sm font-semibold ${
+                selectedSource === AGENT_SOURCE ? 'bg-secondary text-on-secondary' : 'bg-surface-variant'
+              }`}
+            >
+              {filterBySource(leads, AGENT_SOURCE).length}
+            </span>
+          </button>
+        </li>
       </ul>
 
       <div className="text-label-sm text-on-surface-variant uppercase tracking-wider mt-6 mb-2 px-4">
@@ -729,7 +817,9 @@ export default function Calling() {
           <div className="bg-surface-container rounded-xl border border-outline-variant p-12 text-center">
             <h2 className="text-headline-md font-bold text-on-surface mb-2">No leads found</h2>
             <p className="text-body-md text-on-surface-variant">
-              {selectedAttemptNeeded === 'completed'
+              {selectedSource
+                ? `The ${selectedSource} sheet has no leads yet.`
+                : selectedAttemptNeeded === 'completed'
                 ? 'Nobody has completed all 4 attempts without a final status right now.'
                 : selectedAttemptNeeded
                 ? `Nobody needs their ${ATTEMPT_ORDINALS[selectedAttemptNeeded]} attempt right now.`
