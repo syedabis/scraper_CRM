@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import AppShell from '../components/AppShell';
+import { useLiveHandoff } from '../lib/useLiveHandoff';
 import {
   getPendingActionsByStatus,
   filterLeadsNeedingAttempt,
@@ -361,6 +362,21 @@ export default function Calling() {
     try {
       setUpdatingStatus(status);
       const rowNumber = currentLead[0];
+
+      // A call placed on this agent's own phone arrives carrying the duration
+      // the phone measured. /api/log-call is the only route that writes that
+      // duration — and the only one that appends the call-logs row Agent
+      // Tracking counts calls from — so a handed-off call has to go through
+      // it. Saving one through the plain status route would leave the shift
+      // reading as zero calls and zero talk time for work that really
+      // happened. Every other save is untouched and still goes where it did.
+      const live =
+        handoff &&
+        handoff.leadKey === leadKey(currentLead) &&
+        (handoff.phase === 'awaiting' || handoff.phase === 'calling')
+          ? handoff
+          : null;
+
       const payload = {
         rowIndex: rowNumber,
         status,
@@ -368,8 +384,17 @@ export default function Calling() {
         timeSlot: currentTimeSlot,
         notes: notes.trim(),
         ...(dateForStatus ? { statusDate: dateForStatus } : {}),
+        ...(live
+          ? {
+              durationSeconds: live.durationSeconds,
+              outcome: live.outcome,
+              source: 'web-handoff',
+              name: currentLead[3] || '',
+              phone: currentLead[5] || '',
+            }
+          : {}),
       };
-      const response = await fetch('/api/update-lead-status', {
+      const response = await fetch(live ? '/api/log-call' : '/api/update-lead-status', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -392,6 +417,14 @@ export default function Calling() {
       // Clear the date prompt, if it was open for this status
       setPendingStatus(null);
       setStatusDate('');
+
+      // Release the agent's phone to dial the next lead. Sent before the
+      // reload below, not after: the sheet write has already succeeded, and
+      // making the phone sit through a two-second refresh it does not care
+      // about is the whole delay this feature exists to remove.
+      if (handoff?.handoffId && handoff.leadKey === leadKey(currentLead)) {
+        publishSaved(handoff.handoffId);
+      }
 
       // Re-fetch leads to get the latest slot column values
       await refreshLeads();
@@ -493,6 +526,57 @@ export default function Calling() {
     setSearchResults([]);
   };
 
+  // ---------------------------------------------------------------------
+  // Live handoff from this agent's own phone
+  // ---------------------------------------------------------------------
+  // The phone publishes a pointer ("Pretty#517") the moment it dials. Here we
+  // resolve that pointer against the leads already in memory and open it, so
+  // the agent finds the right customer on screen without touching the mouse.
+  // Only this agent's own events ever arrive — see app/lib/useLiveHandoff.js.
+
+  const {
+    available: liveAvailable,
+    connected: liveConnected,
+    handoff,
+    publishSaved,
+  } = useLiveHandoff();
+
+  // Which handoff has already moved the page. Without it every phase change on
+  // the same call (calling → awaiting) would yank the agent back to the top of
+  // the lead, discarding notes they had started typing.
+  const appliedHandoffRef = useRef(null);
+  const [dismissedHandoff, setDismissedHandoff] = useState(null);
+
+  useEffect(() => {
+    if (!handoff?.leadKey) return;
+    if (handoff.phase === 'idle' || handoff.phase === 'saved') return;
+    if (appliedHandoffRef.current === handoff.handoffId) return;
+    // Nothing to resolve the pointer against yet. Deliberately not marked as
+    // applied, so the first call of the shift still opens once the pools land.
+    if (leads.length === 0) return;
+
+    const lead = leads.find((l) => leadKey(l) === handoff.leadKey);
+    if (!lead) return;
+
+    appliedHandoffRef.current = handoff.handoffId;
+    navigateToLead(lead);
+    // navigateToLead is recreated every render; depending on it would re-open
+    // the lead on each keystroke in the notes box.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [handoff, leads]);
+
+  const liveBanner = useMemo(() => {
+    if (!liveAvailable || !handoff?.leadKey) return null;
+    if (handoff.phase !== 'calling' && handoff.phase !== 'awaiting') return null;
+    if (dismissedHandoff === handoff.handoffId) return null;
+    const lead = leads.find((l) => leadKey(l) === handoff.leadKey);
+    return {
+      phase: handoff.phase,
+      handoffId: handoff.handoffId,
+      name: lead?.[3] || lead?.[5] || handoff.leadKey,
+    };
+  }, [liveAvailable, handoff, leads, dismissedHandoff]);
+
   const getCategoryCount = (name) => {
     const pool = filterBySource(leads, PRIMARY_SOURCE);
     if (name === 'New Leads') {
@@ -551,6 +635,28 @@ export default function Calling() {
 
   const search = (
     <div className="flex items-center gap-3">
+      {/* Only shown once Supabase is configured. Agents need to be able to
+          tell "my phone isn't linked" apart from "my phone hasn't called
+          yet" — otherwise a dropped websocket looks like a quiet shift. */}
+      {liveAvailable && (
+        <span
+          className="header-btn h-10 hidden md:flex items-center px-3 gap-2 shrink-0"
+          title={
+            liveConnected
+              ? 'Linked to your phone — leads you call will open here'
+              : 'Not linked to your phone right now'
+          }
+        >
+          <span
+            className="w-2 h-2 rounded-full shrink-0"
+            style={{ backgroundColor: liveConnected ? '#5ce46d' : '#6b7280' }}
+          />
+          <span className="text-xs font-medium text-on-surface-variant whitespace-nowrap">
+            {liveConnected ? 'Phone linked' : 'Phone offline'}
+          </span>
+        </span>
+      )}
+
       {allPendingItems.length > 0 && (
         <button
           onClick={() => setShowPendingModal(true)}
@@ -731,6 +837,46 @@ export default function Calling() {
       {showTooltip && (
         <div className="fixed top-20 left-1/2 -translate-x-1/2 bg-surface-container-highest text-on-surface px-4 py-2 rounded-lg shadow-lg z-50 border border-outline-variant">
           {tooltipMessage}
+        </div>
+      )}
+
+      {/* Opened by the agent's own phone. Amber while the call is still up,
+          green once it has ended and the outcome is all that is missing. */}
+      {liveBanner && (
+        <div
+          className="mb-4 flex items-center gap-3 rounded-xl border px-4 py-3"
+          style={
+            liveBanner.phase === 'awaiting'
+              ? { borderColor: 'rgba(92, 228, 109, 0.35)', backgroundColor: 'rgba(92, 228, 109, 0.08)' }
+              : { borderColor: 'rgba(217, 119, 6, 0.35)', backgroundColor: 'rgba(217, 119, 6, 0.08)' }
+          }
+        >
+          <span
+            className="material-symbols-outlined text-[20px] shrink-0"
+            style={{ color: liveBanner.phase === 'awaiting' ? '#5ce46d' : '#f59e0b' }}
+          >
+            {liveBanner.phase === 'awaiting' ? 'edit_note' : 'phone_in_talk'}
+          </span>
+          <div className="flex-1 min-w-0">
+            <div className="text-label-md font-semibold text-on-surface">
+              {liveBanner.phase === 'awaiting'
+                ? 'Call finished on your phone'
+                : 'Calling now from your phone'}
+            </div>
+            <div className="text-label-sm text-on-surface-variant truncate">
+              {liveBanner.name}
+              {liveBanner.phase === 'awaiting'
+                ? ' — save the status below and your phone dials the next lead'
+                : ' — opened here automatically'}
+            </div>
+          </div>
+          <button
+            onClick={() => setDismissedHandoff(liveBanner.handoffId)}
+            className="shrink-0 text-on-surface-variant hover:text-on-surface"
+            title="Hide"
+          >
+            <span className="material-symbols-outlined text-[18px]">close</span>
+          </button>
         </div>
       )}
 
