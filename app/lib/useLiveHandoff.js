@@ -19,6 +19,10 @@ const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 // throwing on load.
 export const liveHandoffConfigured = Boolean(SUPABASE_URL && SUPABASE_KEY);
 
+// Comfortably inside Clerk's ~60 second token lifetime.
+const TOKEN_REFRESH_MS = 30 * 1000;
+const RESUBSCRIBE_DELAY_MS = 2000;
+
 function toHandoff(row) {
   if (!row || !row.lead_key) return null;
   return {
@@ -75,6 +79,8 @@ export function useLiveHandoff() {
     if (!supabase || !agentId || !isSignedIn) return undefined;
 
     let cancelled = false;
+    let channel = null;
+    let retryTimer = null;
 
     // Catch up before listening. The phone may have published this lead before
     // the agent opened the portal, and a websocket only delivers what happens
@@ -88,32 +94,69 @@ export function useLiveHandoff() {
         if (!cancelled && data) setHandoff(toHandoff(data));
       });
 
-    const channel = supabase
-      .channel(`live_handoff:${agentId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'live_handoff',
-          // Belt and braces: the policies already make other agents' rows
-          // invisible, this just avoids waking the tab for them.
-          filter: `agent_id=eq.${agentId}`,
-        },
-        (payload) => {
+    const teardown = () => {
+      if (channel) {
+        supabase.removeChannel(channel);
+        channel = null;
+      }
+    };
+
+    const subscribe = () => {
+      if (cancelled) return;
+      teardown();
+      channel = supabase
+        .channel(`live_handoff:${agentId}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'live_handoff',
+            // Belt and braces: the policies already make other agents' rows
+            // invisible, this just avoids waking the tab for them.
+            filter: `agent_id=eq.${agentId}`,
+          },
+          (payload) => {
+            if (cancelled) return;
+            const next = toHandoff(payload.new);
+            if (next) setHandoff(next);
+          }
+        )
+        .subscribe((status) => {
           if (cancelled) return;
-          const next = toHandoff(payload.new);
-          if (next) setHandoff(next);
-        }
-      )
-      .subscribe((status) => {
-        if (!cancelled) setConnected(status === 'SUBSCRIBED');
-      });
+          setConnected(status === 'SUBSCRIBED');
+          if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+            clearTimeout(retryTimer);
+            retryTimer = setTimeout(subscribe, RESUBSCRIBE_DELAY_MS);
+          }
+        });
+    };
+
+    subscribe();
+
+    // Realtime authenticates the socket once and never renews it, while a Clerk
+    // token is only good for about a minute — so without this the channel went
+    // quiet a minute into every shift and stayed that way.
+    const refreshTimer = setInterval(() => {
+      supabase.realtime.setAuth().catch(() => {});
+    }, TOKEN_REFRESH_MS);
+
+    // Browsers throttle timers in background tabs, so an agent who leaves the
+    // portal behind while calling can come back to an expired socket.
+    const onVisible = () => {
+      if (cancelled || document.visibilityState !== 'visible') return;
+      supabase.realtime.setAuth().catch(() => {});
+      if (channel?.state !== 'joined') subscribe();
+    };
+    document.addEventListener('visibilitychange', onVisible);
 
     return () => {
       cancelled = true;
+      clearInterval(refreshTimer);
+      clearTimeout(retryTimer);
+      document.removeEventListener('visibilitychange', onVisible);
       setConnected(false);
-      supabase.removeChannel(channel);
+      teardown();
     };
   }, [agentId, isSignedIn]);
 

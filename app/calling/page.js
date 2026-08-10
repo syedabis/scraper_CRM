@@ -635,24 +635,24 @@ export default function Calling() {
 
   const search = (
     <div className="flex items-center gap-3">
-      {/* Only shown once Supabase is configured. Agents need to be able to
-          tell "my phone isn't linked" apart from "my phone hasn't called
-          yet" — otherwise a dropped websocket looks like a quiet shift. */}
+      {/* Reports this browser's own live connection, not the phone's — the two
+          are independent, and the old "Phone offline" wording had agents
+          thinking their handset had dropped when it was this tab that had. */}
       {liveAvailable && (
         <span
           className="header-btn h-10 hidden md:flex items-center px-3 gap-2 shrink-0"
           title={
             liveConnected
-              ? 'Linked to your phone — leads you call will open here'
-              : 'Not linked to your phone right now'
+              ? 'Live sync on — leads you call open here automatically'
+              : 'Reconnecting to live sync. Calls still save normally.'
           }
         >
           <span
             className="w-2 h-2 rounded-full shrink-0"
-            style={{ backgroundColor: liveConnected ? '#5ce46d' : '#6b7280' }}
+            style={{ backgroundColor: liveConnected ? '#5ce46d' : '#f59e0b' }}
           />
           <span className="text-xs font-medium text-on-surface-variant whitespace-nowrap">
-            {liveConnected ? 'Phone linked' : 'Phone offline'}
+            {liveConnected ? 'Live sync on' : 'Reconnecting…'}
           </span>
         </span>
       )}
