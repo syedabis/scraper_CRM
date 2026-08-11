@@ -2,18 +2,34 @@ import { NextResponse } from 'next/server';
 import { google } from 'googleapis';
 import { Readable } from 'stream';
 
-const googleAuth = new google.auth.GoogleAuth({
+const sheetsAuth = new google.auth.GoogleAuth({
   credentials: {
     client_email: process.env.GOOGLE_CLIENT_EMAIL,
     private_key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
   },
-  scopes: [
-    'https://www.googleapis.com/auth/drive',
-    'https://www.googleapis.com/auth/spreadsheets',
-  ],
+  scopes: ['https://www.googleapis.com/auth/spreadsheets'],
 });
-const drive = google.drive({ version: 'v3', auth: googleAuth });
-const sheets = google.sheets({ version: 'v4', auth: googleAuth });
+
+// Screenshot uploads run under their own service account. A file uploaded
+// into a My Drive folder is owned by the *uploader*, not by the folder's
+// owner, so it consumes the uploader's storage quota — and Google no longer
+// grants any quota to service accounts created after the change, which makes
+// files.create fail with 403 "Service Accounts do not have storage quota".
+// DRIVE_GOOGLE_* points at an older account that still has quota; falls back
+// to the main credentials so nothing breaks if it is unset.
+const driveAuth = new google.auth.GoogleAuth({
+  credentials: {
+    client_email: process.env.DRIVE_GOOGLE_CLIENT_EMAIL || process.env.GOOGLE_CLIENT_EMAIL,
+    private_key: (process.env.DRIVE_GOOGLE_PRIVATE_KEY || process.env.GOOGLE_PRIVATE_KEY)?.replace(
+      /\\n/g,
+      '\n'
+    ),
+  },
+  scopes: ['https://www.googleapis.com/auth/drive'],
+});
+
+const drive = google.drive({ version: 'v3', auth: driveAuth });
+const sheets = google.sheets({ version: 'v4', auth: sheetsAuth });
 
 const PAYMENT_LOG_SHEET_NAME = 'Sheet1';
 const PAYMENT_LOG_HEADERS = ['Date', 'Student Name', 'Phone Number', 'Email', 'Course Fees', 'Payment Screenshot'];
