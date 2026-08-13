@@ -14,9 +14,10 @@ export default function AdminPanel() {
   const fetchAllLeads = useCallback(async () => {
     setAdminLoading(true);
     try {
-      const prettyResponse = await fetch("/api/fetch-leads?sheetName=Pretty");
+      const sheetName = process.env.NEXT_PUBLIC_PRIMARY_SHEET_NAME || 'Preety';
+      const prettyResponse = await fetch(`/api/fetch-leads?sheetName=${sheetName}`);
       const prettyData = prettyResponse.ok ? await prettyResponse.json() : [];
-      const prettyLeadsWithOwner = prettyData.map((lead) => [...lead, "Pretty"]);
+      const prettyLeadsWithOwner = prettyData.map((lead) => [...lead, sheetName]);
       setAllLeads(prettyLeadsWithOwner);
     } catch (error) {
       setAllLeads([]);

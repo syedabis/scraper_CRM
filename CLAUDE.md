@@ -26,8 +26,8 @@ payslips-bootcamp1/ (FastAPI, Python, deployed separately to Heroku via its own 
 
 Nothing here uses a traditional app database. Two Google Sheets are the real
 backend:
-- **Leads sheet** (`GOOGLE_SHEET_ID`) — tabs `Pretty` (primary lead pool) and
-  `Agent leads` (a second, separate pool — see "Two lead pools" below), plus
+- **Leads sheet** (`GOOGLE_SHEET_ID`) — tabs `Preety` (primary lead pool) and
+  `Agent Leads` (a second, separate pool — see "Two lead pools" below), plus
   two append-only log tabs (`call-logs`, `agent-sessions`) the code creates on
   first use if they don't exist yet.
 - **Installment sheet** (`INSTALLMENT_SHEET_ID`) — tabs `ep-40`, `ep-41`,
@@ -64,7 +64,8 @@ Two token systems coexist in `app/globals.css`, both dark-only:
 
 ## Two lead pools
 
-`PRIMARY_SOURCE = 'Pretty'` and `AGENT_SOURCE = 'Agent leads'`
+`PRIMARY_SOURCE` (read from `process.env.PRIMARY_SHEET_NAME`, currently `Preety`) and
+`AGENT_SOURCE` (read from `process.env.AGENT_SHEET_NAME`, currently `Agent Leads`)
 (`app/lib/pendingConfirmations.js`). Kept deliberately separate — status
 categories and the "Still Needed" attempt tabs only ever look at `Pretty`.
 Every lead row fetched client-side gets tagged with which sheet it came from
@@ -298,8 +299,13 @@ account), `GOOGLE_SHEET_ID` (leads spreadsheet), `INSTALLMENT_SHEET_ID`,
 (Drive-quota workaround, optional — falls back to the main Google creds),
 `DRIVE_PAYMENT_SCREENSHOTS_FOLDER_ID`, `RECEIPT_BACKEND_URL` /
 `RECEIPT_API_KEY` (the payslips-bootcamp1 service), `NEXT_PUBLIC_SUPABASE_URL`
-/ `NEXT_PUBLIC_SUPABASE_ANON_KEY` (optional, live handoff). All read from
-`.env.local` locally — never print or commit this file.
+/ `NEXT_PUBLIC_SUPABASE_ANON_KEY` (optional, live handoff),
+`PRIMARY_SHEET_NAME` / `NEXT_PUBLIC_PRIMARY_SHEET_NAME` (Google Sheet tab name
+for the primary lead pool — currently `Preety`; `NEXT_PUBLIC_` variant needed
+for client-side pages), `AGENT_SHEET_NAME` / `NEXT_PUBLIC_AGENT_SHEET_NAME`
+(tab name for the agent lead pool — currently `Agent Leads`). **If a sheet tab
+is ever renamed, update only these env vars in Vercel + `.env.local` — no code
+changes required.** All read from `.env.local` locally — never print or commit this file.
 
 ## Deploy
 

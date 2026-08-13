@@ -827,7 +827,7 @@ export default function Home() {
     setError('');
     try {
       const [prettyRes, installmentsRes] = await Promise.all([
-        fetch('/api/fetch-leads?sheetName=Pretty'),
+        fetch(`/api/fetch-leads?sheetName=${process.env.NEXT_PUBLIC_PRIMARY_SHEET_NAME || 'Preety'}`),
         fetch('/api/fetch-installments'),
       ]);
 
