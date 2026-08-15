@@ -5,6 +5,8 @@ import React from "react";
 import AppShell from "../components/AppShell";
 import { splitSlotEntries } from "../lib/pendingConfirmations";
 
+const PRIMARY_SHEET_NAME = process.env.NEXT_PUBLIC_PRIMARY_SHEET_NAME;
+
 export default function AdminPanel() {
   const [allLeads, setAllLeads] = useState([]);
   const [adminLoading, setAdminLoading] = useState(false);
@@ -14,10 +16,9 @@ export default function AdminPanel() {
   const fetchAllLeads = useCallback(async () => {
     setAdminLoading(true);
     try {
-      const sheetName = process.env.NEXT_PUBLIC_PRIMARY_SHEET_NAME || 'Preety';
-      const prettyResponse = await fetch(`/api/fetch-leads?sheetName=${sheetName}`);
+      const prettyResponse = await fetch(`/api/fetch-leads?sheetName=${PRIMARY_SHEET_NAME}`);
       const prettyData = prettyResponse.ok ? await prettyResponse.json() : [];
-      const prettyLeadsWithOwner = prettyData.map((lead) => [...lead, sheetName]);
+      const prettyLeadsWithOwner = prettyData.map((lead) => [...lead, PRIMARY_SHEET_NAME]);
       setAllLeads(prettyLeadsWithOwner);
     } catch (error) {
       setAllLeads([]);
@@ -168,10 +169,10 @@ export default function AdminPanel() {
         {/* Date-specific Stats */}
         <div className="max-w-md mx-auto w-full">
           {(() => {
-            const dateStats = getDateStats('Pretty');
+            const dateStats = getDateStats(PRIMARY_SHEET_NAME);
             return (
               <div className="bg-surface-container rounded-xl border border-outline-variant p-6">
-                <h3 className="text-headline-sm font-semibold text-on-surface mb-4 text-center">Pretty&apos;s Activity on {selectedDate}</h3>
+                <h3 className="text-headline-sm font-semibold text-on-surface mb-4 text-center">{PRIMARY_SHEET_NAME}&apos;s Activity on {selectedDate}</h3>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="bg-primary-container p-4 rounded-lg text-center">
                     <div className="text-on-primary-container text-2xl font-bold">{dateStats.newLeadsAdded}</div>
@@ -190,10 +191,10 @@ export default function AdminPanel() {
         {/* Overall Statistics */}
         <div className="max-w-md mx-auto w-full">
           {(() => {
-            const stats = agentStats('Pretty');
+            const stats = agentStats(PRIMARY_SHEET_NAME);
             return (
               <div className="bg-surface-container rounded-xl border border-outline-variant p-6">
-                <h3 className="text-headline-sm font-semibold text-on-surface mb-4 text-center">Pretty&apos;s Overall Statistics</h3>
+                <h3 className="text-headline-sm font-semibold text-on-surface mb-4 text-center">{PRIMARY_SHEET_NAME}&apos;s Overall Statistics</h3>
                 <div className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div className="bg-primary-container p-4 rounded-lg text-center">

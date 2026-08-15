@@ -4,6 +4,8 @@ import { useState } from 'react';
 import Link from 'next/link';
 import AppShell from '../components/AppShell';
 
+const PRIMARY_SHEET_NAME = process.env.NEXT_PUBLIC_PRIMARY_SHEET_NAME;
+
 export default function DataEntry() {
   const [countryCode, setCountryCode] = useState('+92');
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -425,7 +427,7 @@ export default function DataEntry() {
                     className="w-full p-2.5 bg-surface-container-high border border-outline-variant rounded-lg text-on-surface focus:ring-1 focus:ring-primary focus:border-primary transition-all duration-200 outline-none"
                   >
                     <option value="" className="bg-surface-container-high">Select Lead Owner</option>
-                    <option value="pretty" className="bg-surface-container-high">Pretty</option>
+                    <option value={PRIMARY_SHEET_NAME} className="bg-surface-container-high">{PRIMARY_SHEET_NAME}</option>
                   </select>
                 </div>
               </div>
