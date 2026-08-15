@@ -1,8 +1,8 @@
 // The two lead pools. They are kept deliberately separate: status categories
 // and the attempt tabs only ever show the primary sheet, and "Agent leads" is
 // its own list. Merging them would mix two different books of business.
-export const PRIMARY_SOURCE = process.env.PRIMARY_SHEET_NAME || 'Preety';
-export const AGENT_SOURCE = process.env.AGENT_SHEET_NAME || 'Agent Leads';
+export const PRIMARY_SOURCE = process.env.NEXT_PUBLIC_PRIMARY_SHEET_NAME || process.env.PRIMARY_SHEET_NAME || '';
+export const AGENT_SOURCE = process.env.NEXT_PUBLIC_AGENT_SHEET_NAME || process.env.AGENT_SHEET_NAME || '';
 export const LEAD_SOURCES = [PRIMARY_SOURCE, AGENT_SOURCE];
 
 // Appended by the client after fetching, not present in the sheet. fetch-leads
