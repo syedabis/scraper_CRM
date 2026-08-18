@@ -18,7 +18,7 @@ const VALID_STAGES = [
   'No Answer',
   'Follow Up',
   'Registration',
-  'Payment Pending',
+  'Payment Pending (Confirmation)',
   'Demo',
   'Enrolled',
   'Lost',
