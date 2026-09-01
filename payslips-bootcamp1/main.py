@@ -302,11 +302,17 @@ def send_receipt_email_smtp(to_email, pdf_path, student_name, invoice_number):
     part['Content-Disposition'] = f'attachment; filename="{os.path.basename(pdf_path)}"'
     msg.attach(part)
 
-    # Send the email via SendGrid SMTP
-    with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
-        server.starttls()
-        server.login("apikey", SENDGRID_API_KEY)
-        server.sendmail(EMAIL_USER, [to_email, *cc_list], msg.as_string())
+    # Send the email via SMTP (supports both SendGrid STARTTLS and Resend SSL)
+    smtp_username = os.getenv("SMTP_USERNAME", "resend")
+    if SMTP_PORT == 465:
+        with smtplib.SMTP_SSL(SMTP_SERVER, SMTP_PORT) as server:
+            server.login(smtp_username, SENDGRID_API_KEY)
+            server.sendmail(EMAIL_USER, [to_email, *cc_list], msg.as_string())
+    else:
+        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
+            server.starttls()
+            server.login(smtp_username, SENDGRID_API_KEY)
+            server.sendmail(EMAIL_USER, [to_email, *cc_list], msg.as_string())
 
     # Delete the PDF after sending
     try:
