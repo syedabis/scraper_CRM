@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { splitSlotEntries } from '../../lib/pendingConfirmations';
 import { getAgent } from '../../lib/agentIdentity';
+import { sendMetaCapiEvent } from '../../lib/metaCapi';
 import {
   CALL_LOGS_HEADERS,
   CALL_LOGS_SHEET,
@@ -188,6 +189,16 @@ export async function POST(request) {
       console.error('Lead updated but call-log append failed:', logError);
       callLogged = false;
     }
+
+    // Asynchronously dispatch to Meta Conversions API for milestones (Demo, Registration, Payment Pending, Enrolled)
+    sendMetaCapiEvent({
+      status,
+      previousStatus: rowData[5] || '',
+      phone: body.phone || rowData[4] || '',
+      email: rowData[3] || '',
+      leadDate: rowData[0] || '',
+      owner,
+    }).catch((capiErr) => console.error('[Meta CAPI] Background error in log-call:', capiErr));
 
     return NextResponse.json({
       success: true,

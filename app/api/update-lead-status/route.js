@@ -1,6 +1,7 @@
 import { google } from 'googleapis';
 import { NextResponse } from 'next/server';
 import { splitSlotEntries } from '../../lib/pendingConfirmations';
+import { sendMetaCapiEvent } from '../../lib/metaCapi';
 
 const auth = new google.auth.GoogleAuth({
   credentials: {
@@ -291,6 +292,16 @@ export async function POST(request) {
     console.log('Time slot for this call:', timeSlot);
     console.log('Current time:', currentTime);
     console.log('Client said (status):', status);
+
+    // Asynchronously dispatch to Meta Conversions API for milestones (Demo, Registration, Payment Pending, Enrolled)
+    sendMetaCapiEvent({
+      status,
+      previousStatus: rowData[5] || '',
+      phone: rowData[4] || '',
+      email: rowData[3] || '',
+      leadDate: rowData[0] || '',
+      owner,
+    }).catch((capiErr) => console.error('[Meta CAPI] Background error in update-lead-status:', capiErr));
 
     return NextResponse.json({ 
       success: true, 
