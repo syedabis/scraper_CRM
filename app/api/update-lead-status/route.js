@@ -301,6 +301,9 @@ export async function POST(request) {
       email: rowData[3] || '',
       leadDate: rowData[0] || '',
       owner,
+      sheets,
+      spreadsheetId,
+      rowIndex,
     }).catch((capiErr) => console.error('[Meta CAPI] Background error in update-lead-status:', capiErr));
 
     return NextResponse.json({ 

@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { pakistanTimestamp } from './callLogs';
 
 /**
  * Mapping of CRM Statuses to Meta Standard Events
@@ -9,6 +10,15 @@ export const STATUS_TO_META_EVENT = {
   'Payment Pending (Confirmation)': 'Lead',
   'Enrolled': 'Purchase',
 };
+
+/**
+ * Checks if Column S already contains the milestone event (e.g., 'Schedule', 'Lead', 'Purchase')
+ */
+export function isAlreadySyncedInSheet(columnSValue, status) {
+  const eventName = STATUS_TO_META_EVENT[status];
+  if (!eventName || !columnSValue) return false;
+  return columnSValue.toString().toLowerCase().includes(eventName.toLowerCase());
+}
 
 // In-memory cache to prevent duplicate CAPI calls within the same server instance
 // Keys: `${eventName}_${normalizedPhone}`
@@ -79,7 +89,10 @@ export function isWithinAttributionWindow(rawDate, maxDays = 7) {
  * @param {string} params.email - Customer email address (optional)
  * @param {string} params.leadDate - Lead creation date (to check 7-day window)
  * @param {string} params.owner - Sheet name/owner (e.g., 'Pretty')
- * @returns {Promise<{success: boolean, reason?: string}>}
+ * @param {Object} [params.sheets] - Google Sheets client (optional, to stamp Column S)
+ * @param {string} [params.spreadsheetId] - Google Spreadsheet ID (optional)
+ * @param {number|string} [params.rowIndex] - Lead row index (optional)
+ * @returns {Promise<{success: boolean, reason?: string, eventName?: string, data?: any}>}
  */
 export async function sendMetaCapiEvent({
   status,
@@ -88,6 +101,9 @@ export async function sendMetaCapiEvent({
   email,
   leadDate,
   owner,
+  sheets,
+  spreadsheetId,
+  rowIndex,
 }) {
   const eventName = STATUS_TO_META_EVENT[status];
 
@@ -199,9 +215,42 @@ export async function sendMetaCapiEvent({
     }
 
     console.log(`[Meta CAPI] Successfully sent '${eventName}' for phone ending in ...${cleanPhone?.slice(-4)}`);
-    return { success: true, data: responseData };
+
+    // If Google Sheets client & coordinates were provided, stamp Column S
+    if (sheets && spreadsheetId && owner && rowIndex) {
+      await stampMetaCapiSyncToSheet({
+        sheets,
+        spreadsheetId,
+        sheetName: owner,
+        rowIndex,
+        eventName,
+      }).catch((stampErr) => console.error('[Meta CAPI] Failed to stamp Column S:', stampErr));
+    }
+
+    return { success: true, eventName, data: responseData };
   } catch (err) {
     console.error('[Meta CAPI] Network error while calling Meta Graph API:', err);
     return { success: false, reason: err.message };
+  }
+}
+
+/**
+ * Stamps confirmation in Column S of the lead's sheet tab
+ */
+export async function stampMetaCapiSyncToSheet({ sheets, spreadsheetId, sheetName, rowIndex, eventName }) {
+  if (!sheets || !spreadsheetId || !sheetName || !rowIndex || !eventName) return;
+  try {
+    const stamp = `Synced: ${eventName} (${pakistanTimestamp()})`;
+    await sheets.spreadsheets.values.update({
+      spreadsheetId,
+      range: `${sheetName.toLowerCase()}!S${rowIndex}`,
+      valueInputOption: 'RAW',
+      requestBody: {
+        values: [[stamp]],
+      },
+    });
+    console.log(`[Meta CAPI] Stamped Column S for ${sheetName}#${rowIndex} with '${stamp}'`);
+  } catch (err) {
+    console.error(`[Meta CAPI] Failed to stamp Column S for ${sheetName}#${rowIndex}:`, err);
   }
 }
