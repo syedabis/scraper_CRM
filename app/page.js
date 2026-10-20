@@ -16,8 +16,6 @@ import {
 } from 'chart.js';
 import { Bar } from 'react-chartjs-2';
 import AppShell from './components/AppShell';
-import UserButton from './components/UserButton';
-import ThemeToggle from './components/ThemeToggle';
 import { useTheme } from './components/ThemeProvider';
 import CountUp from './components/CountUp';
 
@@ -212,22 +210,16 @@ export default function Dashboard() {
   };
 
   const headerControls = (
-    <div className="flex items-center gap-3">
-      <button
-        onClick={loadData}
-        disabled={loading}
-        title="Refresh analytics"
-        className="header-btn w-9 h-9 flex items-center justify-center text-muted hover:text-on-surface disabled:opacity-50 cursor-pointer"
-      >
-        <span className={`material-symbols-outlined text-[17px] ${loading ? 'animate-spin' : ''}`}>
-          refresh
-        </span>
-      </button>
-      <ThemeToggle />
-      <div className="header-btn w-9 h-9 flex items-center justify-center p-0.5 cursor-pointer">
-        <UserButton />
-      </div>
-    </div>
+    <button
+      onClick={loadData}
+      disabled={loading}
+      title="Refresh analytics"
+      className="header-btn w-9 h-9 flex items-center justify-center text-muted hover:text-on-surface disabled:opacity-50 cursor-pointer"
+    >
+      <span className={`material-symbols-outlined text-[17px] ${loading ? 'animate-spin' : ''}`}>
+        refresh
+      </span>
+    </button>
   );
 
   return (
