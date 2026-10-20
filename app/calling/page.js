@@ -1,1235 +1,861 @@
 'use client';
 
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import AppShell from '../components/AppShell';
-import { useLiveHandoff } from '../lib/useLiveHandoff';
-import {
-  getPendingActionsByStatus,
-  filterLeadsNeedingAttempt,
-  filterLeadsWithCompletedAttempts,
-  splitSlotEntries,
-  AGENT_SOURCE,
-  PRIMARY_SOURCE,
-  LEAD_SOURCES,
-  SOURCE_INDEX,
-  filterBySource,
-  leadKey,
-  sourceOf,
-} from '../lib/pendingConfirmations';
+import { fireDealWonConfetti, fireMeetingBookedEffect } from '../lib/celebrate';
 
-const ATTEMPT_ORDINALS = { 1: '1st', 2: '2nd', 3: '3rd', 4: '4th' };
+const STATUS_CONFIG = [
+  { name: 'All', label: 'All Businesses', icon: 'storefront', color: 'text-brand-blue' },
+  { name: 'New Lead', label: 'New Leads', icon: 'fiber_new', color: 'text-emerald-400' },
+  { name: 'Connected', label: 'Connected', icon: 'phone_in_talk', color: 'text-blue-400' },
+  { name: 'Follow Up', label: 'Follow Up', icon: 'schedule', color: 'text-amber-400' },
+  { name: 'Interested', label: 'Interested', icon: 'star', color: 'text-purple-400' },
+  { name: 'Meeting Scheduled', label: 'Meeting Set', icon: 'event', color: 'text-cyan-400' },
+  { name: 'Closed', label: 'Closed / Won', icon: 'check_circle', color: 'text-green-400' },
+  { name: 'Not Interested', label: 'Not Interested', icon: 'cancel', color: 'text-rose-400' },
+];
 
-export default function Calling() {
-  const [leads, setLeads] = useState([]);
+export default function CallingPage() {
+  const [restaurants, setRestaurants] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [tooltipMessage, setTooltipMessage] = useState('');
-  const [showTooltip, setShowTooltip] = useState(false);
-  const [updatingStatus, setUpdatingStatus] = useState('');
-  const [filteredLeads, setFilteredLeads] = useState([]);
-  const [selectedStatus, setSelectedStatus] = useState('');
-  const [isEditing, setIsEditing] = useState(false);
-  const [editData, setEditData] = useState({ name: '', email: '', phone: '' });
-  const [updatingLead, setUpdatingLead] = useState(false);
-  const [currentTimeSlot, setCurrentTimeSlot] = useState('');
-  const [notes, setNotes] = useState('');
+  const [slideDirection, setSlideDirection] = useState('next');
+  const [selectedStatus, setSelectedStatus] = useState('All');
+  const [selectedCity, setSelectedCity] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState([]);
-  const [pendingStatus, setPendingStatus] = useState(null);
-  const [statusDate, setStatusDate] = useState('');
-  const [showPendingModal, setShowPendingModal] = useState(false);
-  const [selectedAttemptNeeded, setSelectedAttemptNeeded] = useState(null);
-  const [selectedSource, setSelectedSource] = useState(null);
+  const [viewMode, setViewMode] = useState('focus'); // 'focus' | 'table'
 
-  const STATUSES_REQUIRING_DATE = ['Enrolled', 'Payment Pending (Confirmation)', 'Demo', 'Follow Up'];
+  // Active restaurant editable state
+  const [notes, setNotes] = useState('');
+  const [contactPerson, setContactPerson] = useState('');
+  const [callbackDate, setCallbackDate] = useState('');
+  const [savingStatus, setSavingStatus] = useState(false);
+  const [saveMessage, setSaveMessage] = useState('');
 
-  // Old status text still sitting in the sheet from before the rename — kept
-  // here so filtering/counting by the new category names still surfaces it.
-  const STATUS_ALIASES = {
-    'Connected': ['Call Received'],
-    'No Answer': ['Not Received'],
-    'Follow Up': ['Call Later', 'Awaiting Response'],
-    'Registration': ['Form Filled'],
-    'Payment Pending (Confirmation)': ['Confirmation'],
-    'Enrolled': ['Paid'],
-    'Lost': ['Client Lost'],
-  };
+  // Edit restaurant modal state
+  const [isEditingInfo, setIsEditingInfo] = useState(false);
+  const [editForm, setEditForm] = useState({ name: '', phone: '', city: '', state: '', full_location: '' });
 
-  // Reverse of STATUS_ALIASES — maps old pre-rename text back to today's
-  // category name, so a lead still carrying old status text highlights the
-  // right sidebar tab (and not nothing) when jumped to from search.
-  const CANONICAL_STATUS_BY_ALIAS = Object.entries(STATUS_ALIASES).reduce((acc, [canonical, aliases]) => {
-    aliases.forEach((alias) => { acc[alias] = canonical; });
-    return acc;
-  }, {});
-
-  const leadCategories = [
-    { name: 'New Leads', icon: 'group_add' },
-    { name: 'Connected', icon: 'call_received' },
-    { name: 'No Answer', icon: 'call_missed' },
-    { name: 'Follow Up', icon: 'schedule' },
-    { name: 'Registration', icon: 'assignment' },
-    { name: 'Payment Pending (Confirmation)', icon: 'verified' },
-    { name: 'Demo', icon: 'present_to_all' },
-    { name: 'Enrolled', icon: 'payments' },
-    { name: 'Lost', icon: 'person_off' },
-  ];
-
-  const statusActions = [
-    { status: 'Connected', label: 'Connected', className: 'bg-[#2563EB] text-white hover:bg-[#1D4ED8] border border-blue-500/30' },
-    { status: 'No Answer', label: 'No Answer', className: 'bg-[#475569] text-white hover:bg-[#334155] border border-slate-500/30' },
-    { status: 'Follow Up', label: 'Follow Up', className: 'bg-[#D97706] text-white hover:bg-[#B45309] border border-amber-500/30' },
-    { status: 'Demo', label: 'Demo', className: 'bg-[#0891B2] text-white hover:bg-[#0E7490] border border-cyan-500/30' },
-    { status: 'Registration', label: 'Registration', className: 'bg-[#9333EA] text-white hover:bg-[#7E22CE] border border-purple-500/30' },
-    { status: 'Payment Pending (Confirmation)', label: 'Payment Pending (Confirmation)', className: 'bg-[#65A30D] text-white hover:bg-[#4D7C0F] border border-lime-500/30' },
-    { status: 'Enrolled', label: 'Enrolled', className: 'bg-[#16A34A] text-white hover:bg-[#15803D] font-bold border border-green-500/30 shadow-[0_0_12px_rgba(22,163,74,0.3)]' },
-    { status: 'Lost', label: 'Lost', className: 'bg-[#DC2626] text-white hover:bg-[#B91C1C] font-bold border border-red-500/30 shadow-[0_0_12px_rgba(220,38,38,0.3)]' },
-  ];
-
-  // Function to get current Pakistani time slot
-  const getCurrentTimeSlot = () => {
-    // Get current UTC time and convert to Pakistan time (UTC+5)
-    const now = new Date();
-    const utcTime = now.getTime();
-    const pakistanOffset = 5 * 60 * 60 * 1000; // Pakistan is UTC+5
-    const pakistanTime = new Date(utcTime + pakistanOffset);
-
-    const hours = pakistanTime.getUTCHours();
-    const minutes = pakistanTime.getUTCMinutes();
-    const timeInMinutes = hours * 60 + minutes;
-
-    if (timeInMinutes >= 9 * 60 && timeInMinutes <= 11 * 60) {
-      return 'Slot 1 (9:00 AM - 11:00 AM)';
-    } else if (timeInMinutes >= 11 * 60 + 1 && timeInMinutes <= 13 * 60) {
-      return 'Slot 2 (11:00 AM - 1:00 PM)';
-    } else if (timeInMinutes >= 13 * 60 + 1 && timeInMinutes <= 16 * 60) {
-      return 'Slot 3 (1:00 PM - 4:00 PM)';
-    } else {
-      return 'Slot 4 (4:00 PM - 6:00 PM)';
-    }
-  };
-
-  // Update time slot every minute
-  useEffect(() => {
-    const updateTimeSlot = () => {
-      setCurrentTimeSlot(getCurrentTimeSlot());
-    };
-
-    updateTimeSlot(); // Set initial time slot
-    const interval = setInterval(updateTimeSlot, 60000); // Update every minute
-
-    return () => clearInterval(interval);
-  }, []);
-
-  useEffect(() => {
-    fetchLeads().catch((error) => {
-      setTooltipMessage(error.message || 'Failed to load leads');
-      setShowTooltip(true);
-      setTimeout(() => setShowTooltip(false), 4000);
-    });
-  }, []);
-
-  // Loads every pool and tags each row with the sheet it came from. The tag is
-  // essential: fetch-leads returns a sheet row number and row 5 exists in both
-  // tabs, so without it a status could be written onto an unrelated lead.
-  const loadAllPools = async () => {
-    const results = await Promise.allSettled(
-      LEAD_SOURCES.map(async (sheet) => {
-        const response = await fetch(`/api/fetch-leads?sheetName=${encodeURIComponent(sheet)}`);
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          throw new Error(errorData.error || `Failed to fetch ${sheet}`);
-        }
-        return response.json();
-      })
-    );
-
-    const all = [];
-    const failed = [];
-    results.forEach((result, i) => {
-      const sheet = LEAD_SOURCES[i];
-      if (result.status !== 'fulfilled') {
-        failed.push(sheet);
-        return;
-      }
-      (Array.isArray(result.value) ? result.value : []).forEach((row) => {
-        const tagged = [...row];
-        while (tagged.length < SOURCE_INDEX) tagged.push('');
-        tagged[SOURCE_INDEX] = sheet;
-        all.push(tagged);
-      });
-    });
-
-    // One pool failing must not wipe the other.
-    if (failed.length === LEAD_SOURCES.length) throw new Error('Failed to fetch leads');
-    return all;
-  };
-
-  const fetchLeads = async () => {
+  // Load leads
+  const loadRestaurants = async () => {
     setLoading(true);
     try {
-      const data = await loadAllPools();
-      setLeads(data);
-      return data; // Do NOT call filterLeadsByStatus here!
-    } catch (error) {
-      setLeads([]);
-      setFilteredLeads([]);
-      throw error;
+      const res = await fetch('/api/fetch-leads');
+      if (res.ok) {
+        const data = await res.json();
+        setRestaurants(data);
+      }
+    } catch (err) {
+      console.error('Failed to load restaurants', err);
     } finally {
       setLoading(false);
     }
   };
 
-  // New function to re-fetch leads while preserving current status and position
-  const refreshLeads = async () => {
-    try {
-      const data = await loadAllPools();
-      setLeads(data);
+  useEffect(() => {
+    loadRestaurants();
+  }, []);
 
-      // Preserve current position within whichever filter was active
-      const currentKey = leadKey(currentLead);
-      let nextFiltered;
-      if (selectedSource) {
-        nextFiltered = filterBySource(data, selectedSource);
-        setFilteredLeads(nextFiltered);
-      } else if (selectedAttemptNeeded) {
-        nextFiltered = getAttemptFilterLeads(data, selectedAttemptNeeded);
-        setFilteredLeads(nextFiltered);
-      } else {
-        nextFiltered = filterLeadsByStatus(selectedStatus, data);
-      }
+  // Filtered list
+  const filteredRestaurants = useMemo(() => {
+    return restaurants.filter((r) => {
+      const matchStatus = selectedStatus === 'All' || (r.status || 'New Lead').toLowerCase() === selectedStatus.toLowerCase();
+      const matchCity = selectedCity === 'All' || (r.city || '').toLowerCase() === selectedCity.toLowerCase();
+      const q = searchQuery.toLowerCase().trim();
+      const matchSearch =
+        !q ||
+        (r.name && r.name.toLowerCase().includes(q)) ||
+        (r.phone && r.phone.toLowerCase().includes(q)) ||
+        (r.city && r.city.toLowerCase().includes(q)) ||
+        (r.zip_code && r.zip_code.toLowerCase().includes(q)) ||
+        (r.contact_person && r.contact_person.toLowerCase().includes(q));
 
-      // Matched on the composite key — a bare row number is ambiguous now.
-      if (currentKey) {
-        const newIndex = nextFiltered.findIndex((lead) => leadKey(lead) === currentKey);
-        if (newIndex !== -1) setCurrentIndex(newIndex);
-      }
-    } catch (error) {
-      console.error('Error refreshing leads:', error);
-    }
-  };
-
-  const filterLeadsByStatus = (status, leadsToFilter = leads) => {
-    setSelectedStatus(status);
-    // Status categories only ever show the primary sheet — "Agent leads" is a
-    // separate book and gets its own entry in the sidebar.
-    const pool = filterBySource(leadsToFilter, PRIMARY_SOURCE);
-    let filtered;
-    if (status === 'New Leads') {
-      filtered = pool.filter(lead => !lead[6] || lead[6].trim() === '');
-    } else {
-      const matchNames = [status, ...(STATUS_ALIASES[status] || [])].map((s) => s.trim().toLowerCase());
-      filtered = pool.filter(
-        lead => matchNames.includes((lead[6] || '').trim().toLowerCase())
-      );
-    }
-    setFilteredLeads(filtered);
-    setCurrentIndex(0);
-    return filtered;
-  };
-
-  const handleStatusSelect = (status) => {
-    setSelectedAttemptNeeded(null);
-    setSelectedSource(null);
-    filterLeadsByStatus(status);
-  };
-
-  // A source tab is a pool, not a stage — it shows every lead in that sheet
-  // whatever its status.
-  const handleSourceSelect = (source) => {
-    setSelectedStatus('');
-    setSelectedAttemptNeeded(null);
-    setSelectedSource(source);
-    setFilteredLeads(filterBySource(leads, source));
-    setCurrentIndex(0);
-  };
-
-  // n is 1-4 for the attempt tabs, or 'completed' for leads who've used all
-  // 4 slots without a final status.
-  const getAttemptFilterLeads = (leadsToFilter, n) =>
-    n === 'completed' ? filterLeadsWithCompletedAttempts(leadsToFilter) : filterLeadsNeedingAttempt(leadsToFilter, n);
-
-  const handleAttemptNeededSelect = (n) => {
-    setSelectedStatus('');
-    setSelectedSource(null);
-    setSelectedAttemptNeeded(n);
-    setFilteredLeads(getAttemptFilterLeads(leads, n));
-    setCurrentIndex(0);
-  };
-
-  const handleEditClick = () => {
-    if (!currentLead) return;
-    setEditData({
-      name: currentLead[3] || '',
-      email: currentLead[4] || '',
-      phone: currentLead[5] || ''
+      return matchStatus && matchCity && matchSearch;
     });
-    setIsEditing(true);
-  };
+  }, [restaurants, selectedStatus, selectedCity, searchQuery]);
 
-  const handleSaveEdit = async () => {
-    if (!currentLead) return;
+  const currentRestaurant = filteredRestaurants[currentIndex] || null;
 
-    setUpdatingLead(true);
+  // Sync active edit states when current restaurant changes
+  useEffect(() => {
+    if (currentRestaurant) {
+      setNotes(currentRestaurant.notes || '');
+      setContactPerson(currentRestaurant.contact_person || '');
+      setCallbackDate(currentRestaurant.callback_date || '');
+      setEditForm({
+        name: currentRestaurant.name || '',
+        phone: currentRestaurant.phone || '',
+        city: currentRestaurant.city || '',
+        state: currentRestaurant.state || '',
+        full_location: currentRestaurant.full_location || '',
+      });
+    }
+  }, [currentRestaurant?.id]);
+
+  // Ensure index remains in bounds
+  useEffect(() => {
+    if (currentIndex >= filteredRestaurants.length && filteredRestaurants.length > 0) {
+      setCurrentIndex(0);
+    }
+  }, [filteredRestaurants.length, currentIndex]);
+
+  // Unique cities for filter dropdown
+  const uniqueCities = useMemo(() => {
+    const set = new Set();
+    restaurants.forEach((r) => {
+      if (r.city) set.add(r.city.trim());
+    });
+    return Array.from(set).sort();
+  }, [restaurants]);
+
+  // Category counts
+  const categoryCounts = useMemo(() => {
+    const counts = { All: restaurants.length };
+    STATUS_CONFIG.forEach((c) => {
+      if (c.name !== 'All') {
+        counts[c.name] = restaurants.filter((r) => (r.status || 'New Lead').toLowerCase() === c.name.toLowerCase()).length;
+      }
+    });
+    return counts;
+  }, [restaurants]);
+
+  // Actions
+  const handleUpdateStatus = async (newStatus) => {
+    if (!currentRestaurant) return;
+    setSavingStatus(true);
+    setSaveMessage('');
+
     try {
-      const response = await fetch('/api/update-lead-info', {
+      const res = await fetch('/api/update-lead-status', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          rowIndex: currentLead[0],
-          owner: sourceOf(currentLead),
-          name: editData.name,
-          email: editData.email,
-          phone: editData.phone
+          id: currentRestaurant.id,
+          status: newStatus,
+          notes,
+          contactPerson,
+          callbackDate,
+          currentAttempts: currentRestaurant.attempts,
         }),
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to update lead information');
+      if (res.ok) {
+        const data = await res.json();
+        setRestaurants((prev) =>
+          prev.map((r) => (r.id === currentRestaurant.id ? { ...r, ...data.restaurant } : r))
+        );
+        if (newStatus === 'Closed') {
+          fireDealWonConfetti();
+        } else if (newStatus === 'Meeting Scheduled') {
+          fireMeetingBookedEffect();
+        }
+        setSaveMessage(`Status updated to ${newStatus}`);
+        setTimeout(() => setSaveMessage(''), 3000);
       }
-
-      setTooltipMessage('Lead information updated successfully!');
-      setShowTooltip(true);
-      setTimeout(() => setShowTooltip(false), 3000);
-
-      // Re-fetch leads to get the latest data
-      await refreshLeads();
-
-      setIsEditing(false);
-    } catch (error) {
-      console.error('Error updating lead information:', error);
-      setTooltipMessage(error.message || 'Failed to update lead information');
-      setShowTooltip(true);
-      setTimeout(() => setShowTooltip(false), 3000);
+    } catch (err) {
+      console.error(err);
+      setSaveMessage('Error saving status');
     } finally {
-      setUpdatingLead(false);
+      setSavingStatus(false);
     }
   };
 
-  const handleCancelEdit = () => {
-    setIsEditing(false);
-    setEditData({ name: '', email: '', phone: '' });
-  };
-
-  const handlePrevious = () => {
-    setCurrentIndex((prev) => (prev > 0 ? prev - 1 : filteredLeads.length - 1));
-  };
-
-  const handleNext = () => {
-    setCurrentIndex((prev) => (prev < filteredLeads.length - 1 ? prev + 1 : 0));
-  };
-
-  const currentLead = filteredLeads[currentIndex];
-
-  const pendingActionGroups = useMemo(() => getPendingActionsByStatus(leads), [leads]);
-  const pendingActionStatuses = Object.keys(pendingActionGroups);
-
-  // "Still needed" per attempt number (1st-4th) — mirrors the Dashboard's
-  // Leads by Attempts cards. Clicking one pages through the matching leads
-  // using the same detail view as any other category.
-  const attemptsNeededCounts = useMemo(
-    () => [1, 2, 3, 4].map((n) => ({ n, count: filterLeadsNeedingAttempt(leads, n).length })),
-    [leads]
-  );
-  const completedAttemptsCount = useMemo(() => filterLeadsWithCompletedAttempts(leads).length, [leads]);
-  const allPendingItems = useMemo(
-    () =>
-      pendingActionStatuses.flatMap((statusName) =>
-        pendingActionGroups[statusName].map((item) => ({ ...item, status: statusName }))
-      ),
-    [pendingActionGroups, pendingActionStatuses]
-  );
-
-  // Auto-close the pending-actions modal if everything gets resolved while
-  // it's open (e.g. the last pending lead just got updated).
-  useEffect(() => {
-    if (showPendingModal && allPendingItems.length === 0) {
-      setShowPendingModal(false);
-    }
-  }, [allPendingItems, showPendingModal]);
-
-  const handleStatusChange = async (status, dateForStatus) => {
-    if (!currentLead) {
-      setTooltipMessage('No lead selected');
-      setShowTooltip(true);
-      setTimeout(() => setShowTooltip(false), 3000);
-      return;
-    }
-
+  const handleSaveNotes = async () => {
+    if (!currentRestaurant) return;
+    setSavingStatus(true);
     try {
-      setUpdatingStatus(status);
-      const rowNumber = currentLead[0];
-
-      // A call placed on this agent's own phone arrives carrying the duration
-      // the phone measured. /api/log-call is the only route that writes that
-      // duration — and the only one that appends the call-logs row Agent
-      // Tracking counts calls from — so a handed-off call has to go through
-      // it. Saving one through the plain status route would leave the shift
-      // reading as zero calls and zero talk time for work that really
-      // happened. Every other save is untouched and still goes where it did.
-      const live =
-        handoff &&
-        handoff.leadKey === leadKey(currentLead) &&
-        (handoff.phase === 'awaiting' || handoff.phase === 'calling')
-          ? handoff
-          : null;
-
-      const payload = {
-        rowIndex: rowNumber,
-        status,
-        owner: sourceOf(currentLead),
-        timeSlot: currentTimeSlot,
-        notes: notes.trim(),
-        ...(dateForStatus ? { statusDate: dateForStatus } : {}),
-        ...(live
-          ? {
-              durationSeconds: live.durationSeconds,
-              outcome: live.outcome,
-              source: 'web-handoff',
-              name: currentLead[3] || '',
-              phone: currentLead[5] || '',
-            }
-          : {}),
-      };
-      const response = await fetch(live ? '/api/log-call' : '/api/update-lead-status', {
+      const res = await fetch('/api/update-lead-status', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: currentRestaurant.id,
+          status: currentRestaurant.status || 'New Lead',
+          notes,
+          contactPerson,
+          callbackDate,
+          incrementAttempts: false,
+          attempts: currentRestaurant.attempts,
+        }),
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to update status');
+      if (res.ok) {
+        const data = await res.json();
+        setRestaurants((prev) =>
+          prev.map((r) => (r.id === currentRestaurant.id ? { ...r, ...data.restaurant } : r))
+        );
+        setSaveMessage('Notes saved successfully');
+        setTimeout(() => setSaveMessage(''), 3000);
       }
-
-      setTooltipMessage('Status updated successfully!');
-      setShowTooltip(true);
-      setTimeout(() => setShowTooltip(false), 3000);
-
-      // Clear notes after successful update
-      setNotes('');
-
-      // Clear the date prompt, if it was open for this status
-      setPendingStatus(null);
-      setStatusDate('');
-
-      // Release the agent's phone to dial the next lead. Sent before the
-      // reload below, not after: the sheet write has already succeeded, and
-      // making the phone sit through a two-second refresh it does not care
-      // about is the whole delay this feature exists to remove.
-      if (handoff?.handoffId && handoff.leadKey === leadKey(currentLead)) {
-        publishSaved(handoff.handoffId);
-      }
-
-      // Re-fetch leads to get the latest slot column values
-      await refreshLeads();
-
-      // Small delay to ensure UI updates properly
-      await new Promise(resolve => setTimeout(resolve, 500));
-
-      // Stay on the same lead instead of moving to next
-      // The current lead will be updated with fresh data
-
-    } catch (error) {
-      console.error('Error updating status:', error);
-      setTooltipMessage(error.message || 'Failed to update status');
-      setShowTooltip(true);
-      setTimeout(() => setShowTooltip(false), 3000);
+    } catch (err) {
+      console.error(err);
     } finally {
-      setUpdatingStatus('');
+      setSavingStatus(false);
     }
   };
 
-  // Paid/Confirmation need a mandatory date first — open the prompt instead
-  // of updating immediately for those two statuses.
-  const handleStatusButtonClick = (status) => {
-    if (STATUSES_REQUIRING_DATE.includes(status)) {
-      setPendingStatus(status);
-      setStatusDate(new Date().toISOString().slice(0, 10));
-      return;
-    }
-    handleStatusChange(status);
-  };
-
-  const handleConfirmStatusDate = () => {
-    if (!pendingStatus || !statusDate) return;
-    handleStatusChange(pendingStatus, statusDate);
-  };
-
-  const handleCancelStatusDate = () => {
-    setPendingStatus(null);
-    setStatusDate('');
-  };
-
-  // Searches the already-loaded lead list by name or phone number (partial,
-  // case-insensitive for name; digits-only comparison for phone so dashes/
-  // spaces/country-code formatting differences don't block a match).
-  const handleSearch = (query) => {
-    setSearchQuery(query);
-
-    const trimmed = query.trim();
-    if (!trimmed) {
-      setSearchResults([]);
-      return;
-    }
-
-    const queryLower = trimmed.toLowerCase();
-    const queryDigits = trimmed.replace(/\D/g, '');
-
-    const results = leads.filter((lead) => {
-      const name = (lead[3] || '').toString().toLowerCase();
-      const phoneDigits = (lead[5] || '').toString().replace(/\D/g, '');
-      const nameMatch = name.includes(queryLower);
-      const phoneMatch = queryDigits.length > 0 && phoneDigits.includes(queryDigits);
-      return nameMatch || phoneMatch;
-    });
-
-    setSearchResults(results.slice(0, 20));
-  };
-
-  // Jumps to a search result exactly like clicking it in its own tab would:
-  // re-derive the category it belongs to (clearing any attempt-tab
-  // selection so the sidebar highlight and Last Reached column don't stay
-  // stuck on the tab the user searched from) and select its position there.
-  const navigateToLead = (lead) => {
-    const leadRowNumber = lead[0];
-    const rawStatus = (lead[6] || '').trim();
-    const leadStatus = rawStatus ? (CANONICAL_STATUS_BY_ALIAS[rawStatus] || rawStatus) : 'New Leads';
-
-    setSelectedAttemptNeeded(null);
-    // Status categories hold only the primary sheet, so an Agent lead has to be
-    // opened in its own pool or it would be nowhere to be found.
-    const source = sourceOf(lead);
-    let filtered;
-    if (source !== PRIMARY_SOURCE) {
-      setSelectedStatus('');
-      setSelectedSource(source);
-      filtered = filterBySource(leads, source);
-      setFilteredLeads(filtered);
-    } else {
-      setSelectedSource(null);
-      filtered = filterLeadsByStatus(leadStatus, leads);
-    }
-    const key = leadKey(lead);
-    const filteredIndex = filtered.findIndex(l => leadKey(l) === key);
-    if (filteredIndex !== -1) {
-      setCurrentIndex(filteredIndex);
-    } else {
-      console.error('Lead not in filtered results. Status:', leadStatus, 'Row:', leadRowNumber, 'Filtered:', filtered);
-    }
-    setSearchQuery('');
-    setSearchResults([]);
-  };
-
-  // ---------------------------------------------------------------------
-  // Live handoff from this agent's own phone
-  // ---------------------------------------------------------------------
-  // The phone publishes a pointer ("Pretty#517") the moment it dials. Here we
-  // resolve that pointer against the leads already in memory and open it, so
-  // the agent finds the right customer on screen without touching the mouse.
-  // Only this agent's own events ever arrive — see app/lib/useLiveHandoff.js.
-
-  const {
-    available: liveAvailable,
-    connected: liveConnected,
-    handoff,
-    publishSaved,
-  } = useLiveHandoff();
-
-  // Which handoff has already moved the page. Without it every phase change on
-  // the same call (calling → awaiting) would yank the agent back to the top of
-  // the lead, discarding notes they had started typing.
-  const appliedHandoffRef = useRef(null);
-  const [dismissedHandoff, setDismissedHandoff] = useState(null);
-
-  useEffect(() => {
-    if (!handoff?.leadKey) return;
-    if (handoff.phase === 'idle' || handoff.phase === 'saved') return;
-    if (appliedHandoffRef.current === handoff.handoffId) return;
-    // Nothing to resolve the pointer against yet. Deliberately not marked as
-    // applied, so the first call of the shift still opens once the pools land.
-    if (leads.length === 0) return;
-
-    const lead = leads.find((l) => leadKey(l) === handoff.leadKey);
-    if (!lead) return;
-
-    appliedHandoffRef.current = handoff.handoffId;
-    navigateToLead(lead);
-    // navigateToLead is recreated every render; depending on it would re-open
-    // the lead on each keystroke in the notes box.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [handoff, leads]);
-
-  const liveBanner = useMemo(() => {
-    if (!liveAvailable || !handoff?.leadKey) return null;
-    if (handoff.phase !== 'calling' && handoff.phase !== 'awaiting') return null;
-    if (dismissedHandoff === handoff.handoffId) return null;
-    const lead = leads.find((l) => leadKey(l) === handoff.leadKey);
-    return {
-      phase: handoff.phase,
-      handoffId: handoff.handoffId,
-      name: lead?.[3] || lead?.[5] || handoff.leadKey,
-    };
-  }, [liveAvailable, handoff, leads, dismissedHandoff]);
-
-  const getCategoryCount = (name) => {
-    const pool = filterBySource(leads, PRIMARY_SOURCE);
-    if (name === 'New Leads') {
-      return pool.filter(lead => !lead[6] || lead[6].trim() === '').length;
-    }
-    const matchNames = [name, ...(STATUS_ALIASES[name] || [])];
-    return pool.filter(lead => matchNames.includes(lead[6])).length;
-  };
-
-  // Each slot cell (G-J) is a fixed time-of-day window, not an attempt
-  // number — once a window has been reused, its cell holds more than one
-  // comma-separated "Status (M/D/YYYY, h:mm:ss AM/PM)" entry. "Last Reached"
-  // is the most recent timestamp across every entry in all 4 slots.
-  const getLastReachedLabel = (lead) => {
-    if (!lead) return null;
-    let latest = null;
-    for (const idx of [7, 8, 9, 10]) {
-      const entries = splitSlotEntries(lead[idx]);
-      for (const entry of entries) {
-        const match = entry.match(/\((\d{1,2})\/(\d{1,2})\/(\d{4}),?\s+(\d{1,2}):(\d{2}):(\d{2})\s*(AM|PM)\)/i);
-        if (!match) continue;
-        const [, month, day, year, rawHour, minute, second, ampm] = match;
-        let hour = parseInt(rawHour, 10) % 12;
-        if (/pm/i.test(ampm)) hour += 12;
-        const ts = new Date(Number(year), Number(month) - 1, Number(day), hour, Number(minute), Number(second));
-        if (!latest || ts > latest) latest = ts;
+  const handleSaveInfoEdit = async () => {
+    if (!currentRestaurant) return;
+    try {
+      const res = await fetch('/api/update-lead-info', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: currentRestaurant.id,
+          ...editForm,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setRestaurants((prev) =>
+          prev.map((r) => (r.id === currentRestaurant.id ? { ...r, ...data.restaurant } : r))
+        );
+        setIsEditingInfo(false);
       }
+    } catch (err) {
+      console.error(err);
     }
-    if (!latest) return null;
-    const dd = String(latest.getDate()).padStart(2, '0');
-    const mm = String(latest.getMonth() + 1).padStart(2, '0');
-    const time = latest.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-    return `${dd}/${mm}/${latest.getFullYear()} ${time}`;
   };
 
-  const renderSlotHistory = (index, slotName, timeRange) => {
-    const entries = splitSlotEntries(currentLead?.[index]);
-    return (
-      <div className="bg-surface-container-high rounded-lg px-3 py-2" key={slotName}>
-        <span className="text-label-sm">
-          <span className="font-semibold text-on-surface uppercase tracking-wider">{slotName}</span>{' '}
-          <span className="text-on-surface-variant/70">[{timeRange}]</span>
-        </span>
-        {entries.length > 0 ? (
-          entries.map((entry, i) => (
-            <div key={i} className="text-label-sm text-primary font-semibold truncate">
-              [{entry.toUpperCase()}]
-            </div>
-          ))
-        ) : (
-          <div className="text-label-sm text-on-surface-variant">[NO CALL MADE]</div>
-        )}
+  const copyPhone = (phone) => {
+    if (!phone) return;
+    navigator.clipboard.writeText(phone);
+    setSaveMessage('Phone number copied to clipboard');
+    setTimeout(() => setSaveMessage(''), 2500);
+  };
+
+  const nextLead = () => {
+    if (currentIndex < filteredRestaurants.length - 1) {
+      setSlideDirection('next');
+      setCurrentIndex((prev) => prev + 1);
+    }
+  };
+
+  const prevLead = () => {
+    if (currentIndex > 0) {
+      setSlideDirection('prev');
+      setCurrentIndex((prev) => prev - 1);
+    }
+  };
+
+  // Sidebar Extra Content (Categories & Territory Filter)
+  const sidebarExtra = (
+    <div className="flex flex-col gap-5 py-2">
+      <div>
+        <div className="text-[11px] font-bold text-muted uppercase tracking-wider mb-2.5 px-3">
+          Pipeline Stages
+        </div>
+        <div className="space-y-1">
+          {STATUS_CONFIG.map((cat) => {
+            const active = selectedStatus === cat.name;
+            const count = categoryCounts[cat.name] || 0;
+            return (
+              <button
+                key={cat.name}
+                onClick={() => {
+                  setSelectedStatus(cat.name);
+                  setCurrentIndex(0);
+                }}
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+                  active
+                    ? 'bg-primary-container text-on-primary-container font-semibold shadow-sm'
+                    : 'text-muted hover:text-on-surface hover:bg-surface-container'
+                }`}
+              >
+                <div className="flex items-center gap-2.5 truncate">
+                  <span className={`material-symbols-outlined text-[17px] ${cat.color}`}>{cat.icon}</span>
+                  <span className="truncate">{cat.label}</span>
+                </div>
+                <span
+                  className={`text-[10px] px-2 py-0.5 rounded-full font-bold tabular-nums ${
+                    active ? 'bg-primary text-on-primary' : 'bg-surface-container-high text-muted'
+                  }`}
+                >
+                  {count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
       </div>
-    );
-  };
 
-  const search = (
-    <div className="flex items-center gap-3">
-      {/* Reports this browser's own live connection, not the phone's — the two
-          are independent, and the old "Phone offline" wording had agents
-          thinking their handset had dropped when it was this tab that had. */}
-      {liveAvailable && (
-        <span
-          className="header-btn h-10 hidden md:flex items-center px-3 gap-2 shrink-0"
-          title={
-            liveConnected
-              ? 'Live sync on — leads you call open here automatically'
-              : 'Reconnecting to live sync. Calls still save normally.'
-          }
+      <div className="border-t border-outline-variant pt-4 px-1">
+        <label className="block text-[11px] font-bold text-muted uppercase tracking-wider mb-2 px-2">
+          Territory / City
+        </label>
+        <select
+          value={selectedCity}
+          onChange={(e) => {
+            setSelectedCity(e.target.value);
+            setCurrentIndex(0);
+          }}
+          className="w-full bg-surface-container-high border border-outline-variant rounded-lg px-3 py-2 text-xs text-on-surface outline-none cursor-pointer focus:border-primary"
         >
-          <span
-            className="w-2 h-2 rounded-full shrink-0"
-            style={{ backgroundColor: liveConnected ? '#5ce46d' : '#f59e0b' }}
-          />
-          <span className="text-xs font-medium text-on-surface-variant whitespace-nowrap">
-            {liveConnected ? 'Live sync on' : 'Reconnecting…'}
-          </span>
+          <option value="All">All Cities ({restaurants.length})</option>
+          {uniqueCities.map((c) => (
+            <option key={c} value={c}>
+              {c}
+            </option>
+          ))}
+        </select>
+      </div>
+    </div>
+  );
+
+  // Search slot for TopNav
+  const searchSlot = (
+    <div className="flex items-center gap-3 w-full max-w-md">
+      <div className="relative w-full">
+        <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-muted text-sm pointer-events-none">
+          search
         </span>
-      )}
-
-      {allPendingItems.length > 0 && (
-        <button
-          onClick={() => setShowPendingModal(true)}
-          className="header-btn h-10 flex items-center px-3 gap-2 hover:brightness-125 transition-all text-left cursor-pointer shrink-0"
-          style={{ borderColor: 'rgba(92, 228, 109, 0.3)', backgroundColor: 'rgba(92, 228, 109, 0.08)' }}
-        >
-          <span
-            className="icon-neon w-6 h-6 shrink-0 rounded flex items-center justify-center border"
-            style={{ backgroundColor: 'rgba(92, 228, 109, 0.15)', color: '#5ce46d', borderColor: 'rgba(92, 228, 109, 0.3)' }}
-          >
-            <span className="material-symbols-outlined text-[14px]">notifications_active</span>
-          </span>
-          <span className="text-xs font-semibold text-white whitespace-nowrap pr-1">
-            {allPendingItems.length} followups today
-          </span>
-        </button>
-      )}
-
-      <div className="relative w-full max-w-md">
-        <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-sm">search</span>
         <input
-          className="w-full bg-surface-container-high border border-outline-variant rounded-full py-2 pl-10 pr-4 text-body-md text-on-surface focus:border-primary focus:ring-1 focus:ring-primary transition-all outline-none"
-          placeholder="Search by name or phone number..."
           type="text"
           value={searchQuery}
-          onChange={(e) => handleSearch(e.target.value)}
+          onChange={(e) => {
+            setSearchQuery(e.target.value);
+            setCurrentIndex(0);
+          }}
+          placeholder="Search restaurant, phone, city, or zip..."
+          className="w-full bg-surface-container-high border border-outline-variant rounded-full py-1.5 pl-9 pr-4 text-xs text-on-surface placeholder:text-muted outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
         />
-        {searchResults.length > 0 && searchQuery && (
-          <div className="absolute top-full left-0 right-0 mt-1 bg-surface-container-high border border-outline-variant rounded-lg shadow-lg z-50 max-h-60 overflow-y-auto themed-scrollbar">
-            {searchResults.map((lead, index) => (
-              <button
-                key={index}
-                onClick={() => navigateToLead(lead)}
-                className="w-full p-3 text-left hover:bg-surface-container-highest border-b border-outline-variant last:border-b-0 transition-colors"
-              >
-                <div className="text-primary text-label-sm">{lead[3] || 'No Name'}</div>
-                <div className="text-on-surface text-body-md">{lead[5] || 'No Phone'}</div>
-                <div className="flex justify-between items-center">
-                  <span className="text-on-surface-variant text-label-sm">{lead[6] || 'New Lead'}</span>
-                </div>
-              </button>
-            ))}
-          </div>
-        )}
-        {searchQuery && searchResults.length === 0 && (
-          <div className="absolute top-full left-0 right-0 mt-1 bg-surface-container-high border border-outline-variant rounded-lg shadow-lg z-50 p-3">
-            <div className="text-on-surface-variant text-center text-body-md">No leads found</div>
-          </div>
+        {searchQuery && (
+          <button
+            onClick={() => setSearchQuery('')}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-on-surface cursor-pointer"
+          >
+            <span className="material-symbols-outlined text-[14px]">close</span>
+          </button>
         )}
       </div>
-    </div>
-  );
 
-  const sidebarFooter = (
-    <div className="flex items-center gap-3 text-on-surface-variant border-t border-outline-variant px-4 py-3">
-      <span className="material-symbols-outlined text-[18px]">history_toggle_off</span>
-      <span className="text-label-md">{currentTimeSlot}</span>
-    </div>
-  );
-
-  const sidebarExtra = (
-    <div>
-      <div className="text-label-sm text-on-surface-variant uppercase tracking-wider mb-2 px-4">
-        Lead Categories
+      <div className="header-btn h-9 flex items-center p-1 rounded-lg shrink-0">
+        <button
+          onClick={() => setViewMode('focus')}
+          title="Single Business Focus"
+          className={`px-2.5 py-1 rounded text-xs flex items-center gap-1 transition-colors cursor-pointer ${
+            viewMode === 'focus' ? 'bg-primary text-on-primary font-bold' : 'text-muted hover:text-on-surface'
+          }`}
+        >
+          <span className="material-symbols-outlined text-[15px]">call</span>
+          Focus
+        </button>
+        <button
+          onClick={() => setViewMode('table')}
+          title="List View"
+          className={`px-2.5 py-1 rounded text-xs flex items-center gap-1 transition-colors cursor-pointer ${
+            viewMode === 'table' ? 'bg-primary text-on-primary font-bold' : 'text-muted hover:text-on-surface'
+          }`}
+        >
+          <span className="material-symbols-outlined text-[15px]">list</span>
+          List
+        </button>
       </div>
-      <ul className="space-y-1">
-        {leadCategories.map((category) => {
-          const active = selectedStatus === category.name;
-          const count = getCategoryCount(category.name);
-          return (
-            <li key={category.name}>
-              <button
-                onClick={() => handleStatusSelect(category.name)}
-                className={`w-full flex items-center gap-3 rounded-lg px-4 py-2.5 transition-all duration-200 ${
-                  active
-                    ? 'bg-secondary-container text-on-secondary-container border-l-4 border-secondary shadow-sm'
-                    : 'text-on-surface-variant hover:bg-surface-container-highest'
-                }`}
-              >
-                <span className="material-symbols-outlined shrink-0 w-6 flex justify-center text-[20px]">{category.icon}</span>
-                <span className="text-label-md leading-tight text-left flex-1 font-medium">{category.name}</span>
-                <span
-                  className={`ml-auto shrink-0 min-w-[28px] text-center px-2 py-0.5 rounded-full text-label-sm font-semibold ${
-                    active ? 'bg-secondary text-on-secondary' : 'bg-surface-variant'
-                  }`}
-                >
-                  {count}
-                </span>
-              </button>
-            </li>
-          );
-        })}
-
-        {/* Its own pool, listed after the status categories. Shows every lead
-            in that sheet regardless of status — it is a book of business, not
-            a stage in the funnel. */}
-        <li key={AGENT_SOURCE}>
-          <button
-            onClick={() => handleSourceSelect(AGENT_SOURCE)}
-            className={`w-full flex items-center gap-3 rounded-lg px-4 py-2.5 transition-all duration-200 ${
-              selectedSource === AGENT_SOURCE
-                ? 'bg-secondary-container text-on-secondary-container border-l-4 border-secondary shadow-sm'
-                : 'text-on-surface-variant hover:bg-surface-container-highest'
-            }`}
-          >
-            <span className="material-symbols-outlined shrink-0 w-6 flex justify-center text-[20px]">
-              folder_shared
-            </span>
-            <span className="text-label-md leading-tight text-left flex-1 font-medium">
-              {AGENT_SOURCE}
-            </span>
-            <span
-              className={`ml-auto shrink-0 min-w-[28px] text-center px-2 py-0.5 rounded-full text-label-sm font-semibold ${
-                selectedSource === AGENT_SOURCE ? 'bg-secondary text-on-secondary' : 'bg-surface-variant'
-              }`}
-            >
-              {filterBySource(leads, AGENT_SOURCE).length}
-            </span>
-          </button>
-        </li>
-      </ul>
-
-      <div className="text-label-sm text-on-surface-variant uppercase tracking-wider mt-6 mb-2 px-4">
-        Still Needed
-      </div>
-      <ul className="space-y-1">
-        {attemptsNeededCounts.map(({ n, count }) => {
-          const active = selectedAttemptNeeded === n;
-          return (
-            <li key={n}>
-              <button
-                onClick={() => handleAttemptNeededSelect(n)}
-                className={`w-full flex items-center gap-3 rounded-lg px-4 py-2.5 transition-all duration-200 ${
-                  active
-                    ? 'bg-secondary-container text-on-secondary-container border-l-4 border-secondary shadow-sm'
-                    : 'text-on-surface-variant hover:bg-surface-container-highest'
-                }`}
-              >
-                <span className="material-symbols-outlined shrink-0 w-6 flex justify-center text-[20px]">call</span>
-                <span className="text-label-md leading-tight text-left flex-1 font-medium">{ATTEMPT_ORDINALS[n]} Attempt</span>
-                <span
-                  className={`ml-auto shrink-0 min-w-[28px] text-center px-2 py-0.5 rounded-full text-label-sm font-semibold ${
-                    active ? 'bg-secondary text-on-secondary' : 'bg-surface-variant'
-                  }`}
-                >
-                  {count}
-                </span>
-              </button>
-            </li>
-          );
-        })}
-        <li>
-          <button
-            onClick={() => handleAttemptNeededSelect('completed')}
-            className={`w-full flex items-center gap-3 rounded-lg px-4 py-2.5 transition-all duration-200 ${
-              selectedAttemptNeeded === 'completed'
-                ? 'bg-secondary-container text-on-secondary-container border-l-4 border-secondary shadow-sm'
-                : 'text-on-surface-variant hover:bg-surface-container-highest'
-            }`}
-          >
-            <span className="material-symbols-outlined shrink-0 w-6 flex justify-center text-[20px]">check_circle</span>
-            <span className="text-label-md leading-tight text-left flex-1 font-medium">Completed Attempts</span>
-            <span
-              className={`ml-auto shrink-0 min-w-[28px] text-center px-2 py-0.5 rounded-full text-label-sm font-semibold ${
-                selectedAttemptNeeded === 'completed' ? 'bg-secondary text-on-secondary' : 'bg-surface-variant'
-              }`}
-            >
-              {completedAttemptsCount}
-            </span>
-          </button>
-        </li>
-      </ul>
     </div>
   );
 
   return (
-    <AppShell title="Cognos Sales CRM" search={search} sidebarExtra={sidebarExtra} sidebarFooter={sidebarFooter}>
-      {showTooltip && (
-        <div className="fixed top-20 left-1/2 -translate-x-1/2 bg-surface-container-highest text-on-surface px-4 py-2 rounded-lg shadow-lg z-50 border border-outline-variant">
-          {tooltipMessage}
+    <AppShell title="Restaurant Sales CRM" search={searchSlot} sidebarExtra={sidebarExtra}>
+      {saveMessage && (
+        <div className="fixed top-20 right-8 z-50 bg-surface-container-high/95 backdrop-blur-md border border-emerald-500/40 text-on-surface px-4 py-2.5 rounded-full shadow-2xl text-xs font-bold flex items-center gap-2.5 animate-toast">
+          <span className="w-5 h-5 rounded-full bg-emerald-500 text-white flex items-center justify-center text-[12px] font-black shrink-0">
+            ✓
+          </span>
+          <span>{saveMessage}</span>
         </div>
       )}
 
-      {/* Opened by the agent's own phone. Amber while the call is still up,
-          green once it has ended and the outcome is all that is missing. */}
-      {liveBanner && (
-        <div
-          className="mb-4 flex items-center gap-3 rounded-xl border px-4 py-3"
-          style={
-            liveBanner.phase === 'awaiting'
-              ? { borderColor: 'rgba(92, 228, 109, 0.35)', backgroundColor: 'rgba(92, 228, 109, 0.08)' }
-              : { borderColor: 'rgba(217, 119, 6, 0.35)', backgroundColor: 'rgba(217, 119, 6, 0.08)' }
-          }
-        >
-          <span
-            className="material-symbols-outlined text-[20px] shrink-0"
-            style={{ color: liveBanner.phase === 'awaiting' ? '#5ce46d' : '#f59e0b' }}
-          >
-            {liveBanner.phase === 'awaiting' ? 'edit_note' : 'phone_in_talk'}
-          </span>
-          <div className="flex-1 min-w-0">
-            <div className="text-label-md font-semibold text-on-surface">
-              {liveBanner.phase === 'awaiting'
-                ? 'Call finished on your phone'
-                : 'Calling now from your phone'}
+      {loading ? (
+        <div className="flex flex-col gap-4">
+          <div className="glass-card p-3 h-12 flex justify-between items-center">
+            <div className="skeleton-shimmer h-4 w-36 rounded-md"></div>
+            <div className="skeleton-shimmer h-4 w-28 rounded-md"></div>
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+            <div className="lg:col-span-5 flex flex-col gap-3">
+              <div className="glass-card p-4 h-36 flex flex-col justify-between">
+                <div className="skeleton-shimmer h-5 w-48 rounded"></div>
+                <div className="skeleton-shimmer h-3.5 w-64 rounded"></div>
+                <div className="skeleton-shimmer h-6 w-32 rounded"></div>
+              </div>
+              <div className="glass-card p-4 h-40 flex flex-col justify-between">
+                <div className="skeleton-shimmer h-3.5 w-28 rounded"></div>
+                <div className="skeleton-shimmer h-7 w-44 rounded"></div>
+                <div className="skeleton-shimmer h-10 w-full rounded-xl"></div>
+              </div>
             </div>
-            <div className="text-label-sm text-on-surface-variant truncate">
-              {liveBanner.name}
-              {liveBanner.phase === 'awaiting'
-                ? ' — save the status below and your phone dials the next lead'
-                : ' — opened here automatically'}
+            <div className="lg:col-span-7 flex flex-col gap-3">
+              <div className="glass-card p-4 h-28 flex flex-col justify-between">
+                <div className="skeleton-shimmer h-3.5 w-36 rounded"></div>
+                <div className="skeleton-shimmer h-12 w-full rounded-xl"></div>
+              </div>
+              <div className="glass-card p-4 h-64 flex flex-col justify-between">
+                <div className="skeleton-shimmer h-3.5 w-40 rounded"></div>
+                <div className="skeleton-shimmer flex-1 rounded-xl my-2"></div>
+                <div className="skeleton-shimmer h-8 w-24 rounded-lg self-end"></div>
+              </div>
             </div>
           </div>
+        </div>
+      ) : filteredRestaurants.length === 0 ? (
+        <div className="glass-card p-16 text-center">
+          <span className="material-symbols-outlined text-4xl text-muted mb-2">storefront</span>
+          <h2 className="text-lg font-bold text-on-surface mb-1">No restaurants found</h2>
+          <p className="text-xs text-muted mb-4">
+            Try adjusting your search query, status category, or city filter.
+          </p>
           <button
-            onClick={() => setDismissedHandoff(liveBanner.handoffId)}
-            className="shrink-0 text-on-surface-variant hover:text-on-surface"
-            title="Hide"
+            onClick={() => {
+              setSelectedStatus('All');
+              setSelectedCity('All');
+              setSearchQuery('');
+            }}
+            className="px-4 py-2 rounded-lg bg-primary text-on-primary text-xs font-bold hover:opacity-90 cursor-pointer"
           >
-            <span className="material-symbols-outlined text-[18px]">close</span>
+            Reset Filters
           </button>
         </div>
-      )}
-
-      {pendingStatus && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="bg-surface-container rounded-xl border border-outline-variant p-6 w-full max-w-sm shadow-xl">
-            <h3 className="text-headline-sm font-semibold mb-1">{pendingStatus} Date</h3>
-            <p className="text-body-md text-on-surface-variant mb-4">
-              Enter the date for this {pendingStatus.toLowerCase()} before saving.
-            </p>
-            <input
-              type="date"
-              required
-              autoFocus
-              value={statusDate}
-              onChange={(e) => setStatusDate(e.target.value)}
-              className="w-full bg-surface-container-high border border-outline-variant rounded-lg p-3 text-body-md text-on-surface focus:border-primary focus:ring-1 focus:ring-primary transition-all outline-none mb-4"
-            />
-            <div className="flex justify-end gap-2">
+      ) : viewMode === 'table' ? (
+        /* TABLE DIRECTORY VIEW */
+        <div className="glass-card overflow-hidden">
+          <div className="p-4 border-b border-outline-variant flex justify-between items-center bg-surface-container/50">
+            <div>
+              <h2 className="text-sm font-bold text-on-surface">Restaurants Directory</h2>
+              <p className="text-[11px] text-muted">
+                Showing {filteredRestaurants.length} entries ({selectedStatus} in {selectedCity})
+              </p>
+            </div>
+          </div>
+          <div className="overflow-x-auto themed-scrollbar">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="border-b border-outline-variant bg-surface-container text-muted text-[11px] uppercase tracking-wider font-semibold">
+                  <th className="py-3 px-4">Business Name</th>
+                  <th className="py-3 px-4">Phone</th>
+                  <th className="py-3 px-4">Location</th>
+                  <th className="py-3 px-4">Status</th>
+                  <th className="py-3 px-4 text-center">Attempts</th>
+                  <th className="py-3 px-4">Last Called</th>
+                  <th className="py-3 px-4 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredRestaurants.map((r, idx) => (
+                  <tr
+                    key={r.id}
+                    className="border-b border-outline-variant/50 hover:bg-surface-container-high/60 transition-colors"
+                  >
+                    <td className="py-3 px-4 font-semibold text-on-surface">
+                      <div className="flex items-center gap-2">
+                        {r.image_url ? (
+                          <img src={r.image_url} alt="" className="w-6 h-6 rounded object-cover border border-outline-variant shrink-0" />
+                        ) : (
+                          <span className="w-6 h-6 rounded bg-primary/20 text-primary flex items-center justify-center font-bold text-[10px] shrink-0">
+                            {r.name?.[0] || 'R'}
+                          </span>
+                        )}
+                        <span className="truncate max-w-[220px]">{r.name}</span>
+                      </div>
+                    </td>
+                    <td className="py-3 px-4">
+                      <a href={`tel:${r.phone}`} className="text-primary hover:underline font-mono">
+                        {r.phone || '—'}
+                      </a>
+                    </td>
+                    <td className="py-3 px-4 text-muted">
+                      {r.city ? `${r.city}, ${r.state || ''}` : r.full_location || '—'}
+                    </td>
+                    <td className="py-3 px-4">
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-surface-container-high text-on-surface border border-outline-variant">
+                        {r.status || 'New Lead'}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4 text-center tabular-nums font-bold">
+                      {r.attempts || 0}
+                    </td>
+                    <td className="py-3 px-4 text-muted text-[11px] truncate max-w-[150px]">
+                      {r.last_called || 'Never'}
+                    </td>
+                    <td className="py-3 px-4 text-right">
+                      <button
+                        onClick={() => {
+                          setCurrentIndex(idx);
+                          setViewMode('focus');
+                        }}
+                        className="px-2.5 py-1 rounded bg-primary-container text-on-primary-container hover:bg-primary hover:text-on-primary text-[11px] font-bold transition-colors cursor-pointer"
+                      >
+                        Call
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : (
+        /* SINGLE BUSINESS CALLING COCKPIT (SPACE-OPTIMIZED) */
+        <div className="flex flex-col gap-4">
+          {/* Integrated Compact Navigation & Status Header */}
+          <div className="glass-card px-4 py-2.5 flex flex-wrap justify-between items-center gap-3">
+            <div className="flex items-center gap-2">
               <button
-                onClick={handleCancelStatusDate}
-                className="px-4 py-2 rounded-md text-label-md bg-surface-container-highest text-on-surface-variant hover:bg-surface-bright"
+                onClick={prevLead}
+                disabled={currentIndex === 0}
+                className="header-btn px-2.5 py-1 text-xs font-semibold text-muted hover:text-on-surface disabled:opacity-40 flex items-center gap-1 cursor-pointer"
               >
-                Cancel
+                <span className="material-symbols-outlined text-[15px]">chevron_left</span>
+                Prev
               </button>
+              <span className="text-xs font-semibold text-on-surface tabular-nums px-1">
+                Lead <span className="text-primary font-bold">{currentIndex + 1}</span> of{' '}
+                <span className="text-muted">{filteredRestaurants.length}</span>
+              </span>
               <button
-                onClick={handleConfirmStatusDate}
-                disabled={!statusDate || updatingStatus === pendingStatus}
-                className="px-4 py-2 rounded-md text-label-md bg-secondary text-on-secondary hover:opacity-90 disabled:opacity-50"
+                onClick={nextLead}
+                disabled={currentIndex >= filteredRestaurants.length - 1}
+                className="header-btn px-2.5 py-1 text-xs font-semibold text-muted hover:text-on-surface disabled:opacity-40 flex items-center gap-1 cursor-pointer"
               >
-                {updatingStatus === pendingStatus ? 'Saving...' : 'Confirm'}
+                Next
+                <span className="material-symbols-outlined text-[15px]">chevron_right</span>
+              </button>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] text-muted font-medium">Stage:</span>
+              <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-primary-container text-on-primary-container border border-primary/30">
+                {currentRestaurant.status || 'New Lead'}
+              </span>
+              <button
+                onClick={() => setIsEditingInfo(!isEditingInfo)}
+                className="header-btn px-2.5 py-1 text-xs text-muted hover:text-on-surface flex items-center gap-1 ml-1 cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[14px]">edit</span>
+                {isEditingInfo ? 'Close' : 'Edit'}
               </button>
             </div>
           </div>
-        </div>
-      )}
 
-
-
-      {showPendingModal && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-          onClick={() => setShowPendingModal(false)}
-        >
-          <div
-            className="bg-surface-container rounded-xl border border-outline-variant p-6 w-full max-w-lg max-h-[80vh] overflow-y-auto themed-scrollbar shadow-xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-headline-sm font-semibold">Pending follow-ups ({allPendingItems.length})</h3>
-              <button
-                onClick={() => setShowPendingModal(false)}
-                className="p-1 rounded-full hover:bg-surface-container-highest transition-colors duration-150"
-                aria-label="Close"
-              >
-                <span className="material-symbols-outlined text-[18px]">close</span>
-              </button>
-            </div>
-            <div className="space-y-2">
-              {allPendingItems.map((item) => (
-                <div
-                  key={item.rowNumber}
-                  className="bg-surface-container-high rounded-lg p-3 flex justify-between items-center gap-3"
+          {/* Edit Restaurant Info Dropdown Form */}
+          {isEditingInfo && (
+            <div className="glass-card p-4 border-primary/30 animate-in fade-in duration-150">
+              <h3 className="text-xs font-bold text-on-surface mb-3 flex items-center gap-2">
+                <span className="material-symbols-outlined text-[16px] text-primary">edit_note</span>
+                Edit Business Details
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
+                <div>
+                  <label className="text-[10px] text-muted block mb-1">Restaurant Name</label>
+                  <input
+                    type="text"
+                    value={editForm.name}
+                    onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                    className="w-full bg-surface-container-high border border-outline-variant rounded-lg p-2 text-xs text-on-surface outline-none focus:border-primary"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] text-muted block mb-1">Phone</label>
+                  <input
+                    type="text"
+                    value={editForm.phone}
+                    onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
+                    className="w-full bg-surface-container-high border border-outline-variant rounded-lg p-2 text-xs text-on-surface outline-none focus:border-primary"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] text-muted block mb-1">City</label>
+                  <input
+                    type="text"
+                    value={editForm.city}
+                    onChange={(e) => setEditForm({ ...editForm, city: e.target.value })}
+                    className="w-full bg-surface-container-high border border-outline-variant rounded-lg p-2 text-xs text-on-surface outline-none focus:border-primary"
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="text-[10px] text-muted block mb-1">Full Location Address</label>
+                  <input
+                    type="text"
+                    value={editForm.full_location}
+                    onChange={(e) => setEditForm({ ...editForm, full_location: e.target.value })}
+                    className="w-full bg-surface-container-high border border-outline-variant rounded-lg p-2 text-xs text-on-surface outline-none focus:border-primary"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] text-muted block mb-1">State</label>
+                  <input
+                    type="text"
+                    value={editForm.state}
+                    onChange={(e) => setEditForm({ ...editForm, state: e.target.value })}
+                    className="w-full bg-surface-container-high border border-outline-variant rounded-lg p-2 text-xs text-on-surface outline-none focus:border-primary"
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={() => setIsEditingInfo(false)}
+                  className="px-3 py-1 text-xs rounded-lg text-muted hover:text-on-surface cursor-pointer"
                 >
-                  <div>
-                    <div className="text-body-md font-semibold text-on-surface">{item.name}</div>
-                    <div className="text-label-sm text-on-surface-variant">{item.phone || 'No phone'}</div>
-                  </div>
-                  <div className="text-label-sm text-on-surface-variant text-right">
-                    <div>{item.status}</div>
-                    <div>{item.date}</div>
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSaveInfoEdit}
+                  className="px-4 py-1 text-xs font-bold rounded-lg bg-primary text-on-primary hover:opacity-90 cursor-pointer"
+                >
+                  Save Changes
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* MAIN CALLING COCKPIT: TIGHT 2-COLUMN BALANCED LAYOUT WITH DIRECTIONAL SLIDE ANIMATION */}
+          <div
+            key={currentRestaurant.id}
+            className={`grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch ${
+              slideDirection === 'next' ? 'animate-slide-next' : 'animate-slide-prev'
+            }`}
+          >
+            {/* LEFT COLUMN: BUSINESS INFO & DIRECT DIAL (5 of 12 cols) */}
+            <div className="lg:col-span-5 flex flex-col gap-3">
+              {/* Business Identity Box */}
+              <div className="glass-card p-4 flex flex-col gap-3 hover-lift">
+                <div className="flex items-start gap-3">
+                  {currentRestaurant.image_url ? (
+                    <img
+                      src={currentRestaurant.image_url}
+                      alt={currentRestaurant.name}
+                      className="w-14 h-14 rounded-xl object-cover border border-outline-variant shrink-0 bg-surface-container"
+                      onError={(e) => {
+                        e.target.style.display = 'none';
+                      }}
+                    />
+                  ) : (
+                    <div className="w-12 h-12 rounded-xl bg-primary/15 text-primary flex items-center justify-center font-black text-lg border border-primary/25 shrink-0">
+                      {currentRestaurant.name?.[0] || 'R'}
+                    </div>
+                  )}
+
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <h1 className="text-lg font-black text-on-surface tracking-tight truncate leading-tight">
+                        {currentRestaurant.name}
+                      </h1>
+                      <span className="text-[10px] font-mono text-muted bg-surface-container px-1.5 py-0.5 rounded">
+                        #{currentRestaurant.id}
+                      </span>
+                    </div>
+
+                    <p className="text-[11px] text-muted flex items-start gap-1 mt-1 leading-snug">
+                      <span className="material-symbols-outlined text-[14px] text-emerald-500 shrink-0 mt-0.5">location_on</span>
+                      <span className="line-clamp-2">{currentRestaurant.full_location || `${currentRestaurant.city}, ${currentRestaurant.state}`}</span>
+                    </p>
                   </div>
                 </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
 
-      <div className="flex flex-col gap-6">
-        {loading ? (
-          <div className="text-center text-on-surface-variant py-16">Loading leads...</div>
-        ) : filteredLeads.length === 0 ? (
-          <div className="bg-surface-container rounded-xl border border-outline-variant p-12 text-center">
-            <h2 className="text-headline-md font-bold text-on-surface mb-2">No leads found</h2>
-            <p className="text-body-md text-on-surface-variant">
-              {selectedSource
-                ? `The ${selectedSource} sheet has no leads yet.`
-                : selectedAttemptNeeded === 'completed'
-                ? 'Nobody has completed all 4 attempts without a final status right now.'
-                : selectedAttemptNeeded
-                ? `Nobody needs their ${ATTEMPT_ORDINALS[selectedAttemptNeeded]} attempt right now.`
-                : selectedStatus === 'New Leads'
-                ? 'No new leads available.'
-                : selectedStatus
-                ? `No leads with status "${selectedStatus}" found.`
-                : 'Pick a lead category from the sidebar to get started.'}
-            </p>
-          </div>
-        ) : (
-          <>
-            {/* Lead Info Header */}
-            <section className="grid grid-cols-1 md:grid-cols-5 gap-4">
-              <div className="col-span-1 md:col-span-5 bg-surface-container rounded-xl border border-outline-variant p-1">
-                <table className="w-full text-left border-collapse table-fixed">
-                  <thead>
-                    <tr className="bg-surface-container-high text-on-surface-variant text-label-md border-b border-outline-variant">
-                      <th className={`p-4 font-semibold ${selectedAttemptNeeded === 4 ? 'w-[20%]' : 'w-[22%]'}`}>Name</th>
-                      <th className={`p-4 font-semibold ${selectedAttemptNeeded === 4 ? 'w-[16%]' : 'w-[18%]'}`}>Phone</th>
-                      <th className={`p-4 font-semibold ${selectedAttemptNeeded === 4 ? 'w-[14%]' : 'w-[16%]'}`}>Email</th>
-                      <th className={`p-4 font-semibold ${selectedAttemptNeeded === 4 ? 'w-[18%]' : 'w-[22%]'}`}>Lead Received</th>
-                      <th className={`p-4 font-semibold text-center ${selectedAttemptNeeded === 4 ? 'w-[8%]' : 'w-[10%]'}`}>Attempts</th>
-                      {selectedAttemptNeeded === 4 && (
-                        <th className="p-4 font-semibold w-[14%]">Last Reached</th>
-                      )}
-                      <th className={`p-4 font-semibold text-right ${selectedAttemptNeeded === 4 ? 'w-[10%]' : 'w-[12%]'}`}>
-                        {isEditing ? (
-                          <div className="flex justify-end gap-2">
-                            <button
-                              onClick={handleSaveEdit}
-                              disabled={updatingLead}
-                              className="px-3 py-1 rounded-md text-label-md bg-secondary text-on-secondary hover:opacity-90 disabled:opacity-50"
-                            >
-                              {updatingLead ? 'Saving...' : 'Save'}
-                            </button>
-                            <button
-                              onClick={handleCancelEdit}
-                              className="px-3 py-1 rounded-md text-label-md bg-surface-container-highest text-on-surface-variant hover:bg-surface-bright"
-                            >
-                              Cancel
-                            </button>
-                          </div>
-                        ) : (
-                          <button
-                            onClick={handleEditClick}
-                            className="flex items-center gap-1 px-3 py-1 rounded-md text-label-md bg-primary-container text-on-primary-container hover:bg-primary hover:text-on-primary ml-auto"
-                          >
-                            <span className="material-symbols-outlined text-[16px]">edit</span>
-                            Edit
-                          </button>
-                        )}
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr className="text-body-md hover:bg-surface-container-highest transition-colors">
-                      <td className="p-4 truncate">
-                        {isEditing ? (
-                          <input
-                            type="text"
-                            value={editData.name}
-                            onChange={(e) => setEditData({ ...editData, name: e.target.value })}
-                            className="w-full bg-surface-container-high border border-outline-variant rounded-md px-2 py-1 text-on-surface outline-none focus:border-primary"
-                          />
-                        ) : (
-                          <span className="flex items-center gap-2 truncate" title={currentLead?.[3] || ''}>
-                            <span className="w-2 h-2 rounded-full bg-secondary shrink-0" />
-                            <span className="truncate font-medium">{currentLead?.[3] || ''}</span>
-                          </span>
-                        )}
-                      </td>
-                      <td className="p-4 truncate">
-                        {isEditing ? (
-                          <input
-                            type="text"
-                            value={editData.phone}
-                            onChange={(e) => setEditData({ ...editData, phone: e.target.value })}
-                            className="w-full bg-surface-container-high border border-outline-variant rounded-md px-2 py-1 text-on-surface outline-none focus:border-primary"
-                          />
-                        ) : (
-                          <span className="truncate">{currentLead?.[5] || ''}</span>
-                        )}
-                      </td>
-                      <td className="p-4 text-on-surface-variant truncate">
-                        {isEditing ? (
-                          <input
-                            type="email"
-                            value={editData.email}
-                            onChange={(e) => setEditData({ ...editData, email: e.target.value })}
-                            className="w-full bg-surface-container-high border border-outline-variant rounded-md px-2 py-1 text-on-surface outline-none focus:border-primary"
-                          />
-                        ) : (
-                          <span className="truncate" title={currentLead?.[4] || 'Not provided'}>
-                            {currentLead?.[4] || 'Not provided'}
-                          </span>
-                        )}
-                      </td>
-                      <td className="p-4 truncate">
-                        <span className="truncate">{currentLead?.[1] || ''} {currentLead?.[2] || ''}</span>
-                      </td>
-                      <td className="p-4 text-center font-bold text-primary">{currentLead?.[11] || 0}</td>
-                      {selectedAttemptNeeded === 4 && (
-                        <td className="p-4 text-on-surface-variant truncate">
-                          <span className="truncate">{getLastReachedLabel(currentLead) || '—'}</span>
-                        </td>
-                      )}
-                      <td className="p-4"></td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </section>
-
-            {/* Update Status — full width */}
-            <div className="bg-surface-container rounded-xl border border-outline-variant p-6 flex flex-col gap-4">
-              <div className="flex justify-between items-center mb-2">
-                <h3 className="text-headline-sm font-semibold">Update Status</h3>
-                <div className="flex items-center gap-1">
-                  <button
-                    onClick={handlePrevious}
-                    className="p-1 rounded-full hover:bg-surface-container-highest transition-colors duration-150"
-                    aria-label="Previous lead"
+                {/* Quick Link Buttons */}
+                <div className="flex items-center gap-2 pt-1 border-t border-outline-variant/60 flex-wrap">
+                  {currentRestaurant.listing_url && (
+                    <a
+                      href={currentRestaurant.listing_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="header-btn px-2.5 py-1 text-[11px] text-amber-500 hover:text-amber-600 flex items-center gap-1 font-semibold pressable-btn"
+                    >
+                      <span className="material-symbols-outlined text-[13px]">open_in_new</span>
+                      YellowPages
+                    </a>
+                  )}
+                  <a
+                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                      currentRestaurant.name + ' ' + (currentRestaurant.full_location || currentRestaurant.city)
+                    )}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="header-btn px-2.5 py-1 text-[11px] text-sky-500 hover:text-sky-600 flex items-center gap-1 font-semibold pressable-btn"
                   >
-                    <span className="material-symbols-outlined text-on-surface-variant text-[18px] block">chevron_left</span>
-                  </button>
-                  <span className="text-label-sm text-on-surface-variant whitespace-nowrap px-1">
-                    Lead {currentIndex + 1} of {filteredLeads.length}
+                    <span className="material-symbols-outlined text-[13px]">map</span>
+                    Google Maps
+                  </a>
+                </div>
+              </div>
+
+              {/* Integrated Direct Dial Widget */}
+              <div className="glass-card p-4 flex flex-col gap-2.5 bg-gradient-to-br from-surface-container-high/60 to-surface-container hover-lift">
+                <div className="flex justify-between items-center">
+                  <span className="text-[10px] font-bold text-muted uppercase tracking-wider flex items-center gap-1.5">
+                    <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                    </span>
+                    Direct Phone Line
                   </span>
                   <button
-                    onClick={handleNext}
-                    className="p-1 rounded-full hover:bg-surface-container-highest transition-colors duration-150"
-                    aria-label="Next lead"
+                    onClick={() => copyPhone(currentRestaurant.phone)}
+                    className="text-[11px] text-primary hover:underline flex items-center gap-1 cursor-pointer font-medium pressable-btn"
                   >
-                    <span className="material-symbols-outlined text-on-surface-variant text-[18px] block">chevron_right</span>
+                    <span className="material-symbols-outlined text-[12px]">content_copy</span>
+                    Copy
                   </button>
                 </div>
+
+                <div className="text-xl font-mono font-black text-on-surface tracking-wide">
+                  {currentRestaurant.phone || 'No Phone Available'}
+                </div>
+
+                <a
+                  href={currentRestaurant.phone ? `tel:${currentRestaurant.phone.replace(/\D/g, '')}` : '#'}
+                  onClick={() => handleUpdateStatus(currentRestaurant.status || 'Connected')}
+                  className={`w-full py-2.5 rounded-xl font-black text-center text-xs flex items-center justify-center gap-2 shadow-md transition-all transform active:scale-95 pressable-btn ${
+                    currentRestaurant.phone
+                      ? 'bg-gradient-to-r from-emerald-600 to-green-500 hover:from-emerald-500 hover:to-green-400 text-white shadow-emerald-500/20 cursor-pointer animate-radar'
+                      : 'bg-muted text-gray-400 opacity-50 cursor-not-allowed pointer-events-none'
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-[18px]">call</span>
+                  CLICK TO CALL
+                </a>
+
+                <div className="flex justify-between items-center text-[10px] text-muted pt-1 border-t border-outline-variant/60">
+                  <span>Calls: <strong className="text-on-surface tabular-nums">{currentRestaurant.attempts || 0}</strong></span>
+                  <span className="truncate max-w-[160px] text-right">
+                    {currentRestaurant.last_called ? `Last: ${currentRestaurant.last_called.split(' by ')[0]}` : 'Never contacted'}
+                  </span>
+                </div>
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                {statusActions.map((action) => (
-                  <button
-                    key={action.status}
-                    onClick={() => handleStatusButtonClick(action.status)}
-                    disabled={updatingStatus === action.status}
-                    className={`py-2 px-3 rounded-lg text-label-md font-semibold transition-colors text-center shadow-sm ${action.className} ${
-                      updatingStatus === action.status ? 'opacity-60 cursor-wait' : ''
-                    }`}
-                  >
-                    {updatingStatus === action.status ? 'Updating...' : action.label}
-                  </button>
-                ))}
+
+              {/* Contact Person & Callback inputs */}
+              <div className="glass-card p-3.5 flex flex-col gap-2.5 text-xs">
+                <div>
+                  <label className="text-[10px] font-bold text-muted uppercase tracking-wider block mb-1">
+                    Contact Person / Decision Maker
+                  </label>
+                  <input
+                    type="text"
+                    value={contactPerson}
+                    onChange={(e) => setContactPerson(e.target.value)}
+                    placeholder="e.g. Owner, General Manager..."
+                    className="w-full bg-surface-container-high border border-outline-variant rounded-lg px-2.5 py-1.5 text-xs text-on-surface outline-none focus:border-primary transition-all"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-bold text-muted uppercase tracking-wider block mb-1">
+                    Callback / Follow-Up Date
+                  </label>
+                  <input
+                    type="date"
+                    value={callbackDate}
+                    onChange={(e) => setCallbackDate(e.target.value)}
+                    className="w-full bg-surface-container-high border border-outline-variant rounded-lg px-2.5 py-1.5 text-xs text-on-surface outline-none focus:border-primary transition-all"
+                  />
+                </div>
               </div>
             </div>
 
-            {/* Notes + Call History — below Update Status */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className="bg-surface-container rounded-xl border border-outline-variant p-6 flex flex-col gap-4">
-                <label className="text-headline-sm font-semibold flex items-center gap-2">
-                  <span className="material-symbols-outlined text-primary">edit_note</span>
-                  Notes
-                </label>
+            {/* RIGHT COLUMN: CALL OUTCOMES & INTERACTIVE NOTES (7 of 12 cols) */}
+            <div className="lg:col-span-7 flex flex-col gap-3">
+              {/* Call Outcomes Box */}
+              <div className="glass-card p-4 flex flex-col gap-2.5">
+                <div className="text-[11px] font-bold text-muted uppercase tracking-wider flex justify-between items-center">
+                  <span>Log Call Outcome</span>
+                  <span className="text-[10px] font-normal lowercase text-muted">1-click update</span>
+                </div>
+
+                {/* 2-Row Dense Outcome Action Buttons with Press Feedback */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  <button
+                    onClick={() => handleUpdateStatus('Connected')}
+                    disabled={savingStatus}
+                    className="py-2 px-2 rounded-xl font-bold text-[11px] bg-blue-500/15 text-blue-500 hover:bg-blue-600 hover:text-white border border-blue-500/30 transition-all flex items-center justify-center gap-1.5 cursor-pointer pressable-btn hover-lift active:scale-95"
+                  >
+                    <span className="material-symbols-outlined text-[15px]">phone_in_talk</span>
+                    Connected
+                  </button>
+
+                  <button
+                    onClick={() => handleUpdateStatus('Follow Up')}
+                    disabled={savingStatus}
+                    className="py-2 px-2 rounded-xl font-bold text-[11px] bg-amber-500/15 text-amber-500 hover:bg-amber-600 hover:text-white border border-amber-500/30 transition-all flex items-center justify-center gap-1.5 cursor-pointer pressable-btn hover-lift active:scale-95"
+                  >
+                    <span className="material-symbols-outlined text-[15px]">schedule</span>
+                    Follow Up
+                  </button>
+
+                  <button
+                    onClick={() => handleUpdateStatus('Interested')}
+                    disabled={savingStatus}
+                    className="py-2 px-2 rounded-xl font-bold text-[11px] bg-purple-500/15 text-purple-500 hover:bg-purple-600 hover:text-white border border-purple-500/30 transition-all flex items-center justify-center gap-1.5 cursor-pointer pressable-btn hover-lift active:scale-95"
+                  >
+                    <span className="material-symbols-outlined text-[15px]">star</span>
+                    Interested
+                  </button>
+
+                  <button
+                    onClick={() => handleUpdateStatus('Meeting Scheduled')}
+                    disabled={savingStatus}
+                    className="py-2 px-2 rounded-xl font-bold text-[11px] bg-cyan-500/15 text-cyan-500 hover:bg-cyan-600 hover:text-white border border-cyan-500/30 transition-all flex items-center justify-center gap-1.5 cursor-pointer pressable-btn hover-lift active:scale-95"
+                  >
+                    <span className="material-symbols-outlined text-[15px]">event</span>
+                    Meeting Set
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    onClick={() => handleUpdateStatus('Closed')}
+                    disabled={savingStatus}
+                    className="py-2 px-2 rounded-xl font-bold text-[11px] bg-emerald-500/15 text-emerald-500 hover:bg-emerald-600 hover:text-white border border-emerald-500/30 transition-all flex items-center justify-center gap-1.5 cursor-pointer pressable-btn hover-lift active:scale-95 shadow-sm"
+                  >
+                    <span className="material-symbols-outlined text-[15px]">check_circle</span>
+                    Closed / Won
+                  </button>
+
+                  <button
+                    onClick={() => handleUpdateStatus('No Answer')}
+                    disabled={savingStatus}
+                    className="py-2 px-2 rounded-xl font-bold text-[11px] bg-slate-500/15 text-slate-400 hover:bg-slate-600 hover:text-white border border-slate-500/30 transition-all flex items-center justify-center gap-1.5 cursor-pointer pressable-btn hover-lift active:scale-95"
+                  >
+                    <span className="material-symbols-outlined text-[15px]">phone_missed</span>
+                    No Answer
+                  </button>
+
+                  <button
+                    onClick={() => handleUpdateStatus('Not Interested')}
+                    disabled={savingStatus}
+                    className="py-2 px-2 rounded-xl font-bold text-[11px] bg-rose-500/15 text-rose-500 hover:bg-rose-600 hover:text-white border border-rose-500/30 transition-all flex items-center justify-center gap-1.5 cursor-pointer pressable-btn hover-lift active:scale-95"
+                  >
+                    <span className="material-symbols-outlined text-[15px]">cancel</span>
+                    Not Interested
+                  </button>
+                </div>
+              </div>
+
+              {/* Conversation Notes Box (Fills remaining height) */}
+              <div className="glass-card p-4 flex-1 flex flex-col gap-2 min-h-[260px]">
+                <div className="flex justify-between items-center">
+                  <label className="text-[11px] font-bold text-muted uppercase tracking-wider flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-[15px] text-primary">chat</span>
+                    Call Conversation Notes
+                  </label>
+                  <button
+                    onClick={handleSaveNotes}
+                    disabled={savingStatus}
+                    className="px-3 py-1 rounded-lg bg-primary text-on-primary text-xs font-bold hover:opacity-90 flex items-center gap-1 transition-all cursor-pointer shadow-sm"
+                  >
+                    <span className="material-symbols-outlined text-[14px]">save</span>
+                    Save Notes
+                  </button>
+                </div>
+
                 <textarea
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
-                  className="w-full bg-surface-container-high border border-outline-variant rounded-lg p-3 text-body-md text-on-surface focus:border-primary focus:ring-1 focus:ring-primary transition-all resize-none outline-none"
-                  placeholder="Enter any notes about this call or lead..."
-                  rows="2"
+                  placeholder="Record discussion details: contact name, current POS/delivery setup, pain points, pricing quoted, decision timeline, follow-up commitments..."
+                  className="w-full flex-1 bg-surface-container-high border border-outline-variant rounded-xl p-3 text-xs text-on-surface outline-none focus:border-primary leading-relaxed resize-none transition-all"
                 />
-                {currentLead?.[12] && (
-                  <div className="bg-surface-container-high rounded-lg p-3 border border-outline-variant/50">
-                    <h4 className="text-label-sm text-on-surface-variant uppercase tracking-wider mb-1 font-semibold">Saved Notes</h4>
-                    <p className="text-body-md text-on-surface whitespace-pre-wrap">{currentLead[12]}</p>
-                  </div>
-                )}
-              </div>
-
-              <div className="bg-surface-container rounded-xl border border-outline-variant p-6 flex flex-col gap-3">
-                <h3 className="text-headline-sm font-semibold flex items-center gap-2">
-                  <span className="material-symbols-outlined text-primary">history</span>
-                  Call History
-                </h3>
-                <div className="grid grid-cols-2 gap-2">
-                  {renderSlotHistory(7, 'Slot 1', '9:00 AM - 11:00 AM')}
-                  {renderSlotHistory(8, 'Slot 2', '11:00 AM - 1:00 PM')}
-                  {renderSlotHistory(9, 'Slot 3', '1:00 PM - 4:00 PM')}
-                  {renderSlotHistory(10, 'Slot 4', '4:00 PM - 6:00 PM')}
-                </div>
               </div>
             </div>
-
-            {/* Sales Pitch */}
-            <div className="flex flex-col gap-4">
-              <div className="bg-inverse-surface text-black rounded-xl p-8 shadow-md border border-outline-variant h-full leading-relaxed text-body-lg">
-                <p className="mb-4">Assalam o Alaikum!</p>
-                <p className="mb-4">
-                  Aap ne WhatsApp par humse contact kiya tha regarding our{' '}
-                  <strong className="font-bold text-black">Data Science Bootcamp</strong>. Kya aap is
-                  bootcamp ke baare mein aur janna chahenge?
-                </p>
-                <p className="mb-2">Toh let me explain — yeh <strong className="font-bold text-black">4-month ka complete bootcamp</strong> hai:</p>
-                <ul className="space-y-2 mb-6 ml-2">
-                  <li className="flex items-start gap-2">
-                    <span className="text-black mt-1">◆</span>
-                    <span>1st Month – Python programming: from basics to data handling</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-black mt-1">◆</span>
-                    <span>2nd Month – Machine Learning: algorithms, model building</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-black mt-1">◆</span>
-                    <span>3rd Month – Deep Learning: neural networks, CNNs</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-black mt-1">◆</span>
-                    <span>
-                      4th Month – Generative AI: jisme aap apna <strong className="font-bold text-black">khud ka chatbot</strong> build
-                      kar saktay hain using advanced GenAI tools
-                    </span>
-                  </li>
-                </ul>
-                <p className="mb-4 flex items-start gap-2">
-                  <span className="text-xl">✨</span>
-                  <span>
-                    <strong className="font-bold text-black">Assignments har week diye jate hain</strong> aur unka{' '}
-                    <strong className="font-bold text-black">feedback within 1 hour</strong> mil jata hai — taake aap fast pace pe
-                    improve kar sakein.
-                  </span>
-                </p>
-                <p className="mb-4">
-                  Mujhe aapke background ke baare mein thoda batayein, taake main aapko aur ache se guide kar sakun.
-                  Aapka current field kya hai?
-                </p>
-                <p className="mb-4 flex items-start gap-2">
-                  <span className="text-black mt-1">✔</span>
-                  <span>
-                    Agar aap <strong className="font-bold text-black">80% ya us se zyada score</strong>{' '}
-                    karte hain in assignments mein, toh aapko <strong className="font-bold text-black">remote internship</strong>{' '}
-                    milti hai — jisse aapka <strong className="font-bold text-black">professional experience</strong> build hota
-                    hai.
-                  </span>
-                </p>
-                <p className="mb-6 flex items-start gap-2">
-                  <span className="text-xl">📝</span>
-                  <span>
-                    Plus, hum aapki <strong className="font-bold text-black">LinkedIn aur Resume optimization</strong> mein bhi
-                    help karte hain taake job market ke liye aap ready ho jayein.
-                  </span>
-                </p>
-                <p className="mb-4">Kya aapko yeh information helpful lagi? Ya koi aur sawal hain aapke mind mein?</p>
-                <p className="mb-4">
-                  If you&apos;re interested, just let me know — I&apos;ll share the{' '}
-                  <strong className="font-bold text-black">registration link and next steps</strong> with you.
-                </p>
-                <p className="flex items-center gap-2">
-                  <strong className="font-bold text-black">Limited seats hain</strong>, so don&apos;t miss this
-                  opportunity! 🚀
-                </p>
-              </div>
-            </div>
-
-          </>
-        )}
-      </div>
+          </div>
+        </div>
+      )}
     </AppShell>
   );
 }

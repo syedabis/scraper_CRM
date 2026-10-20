@@ -1,50 +1,38 @@
-import { google } from 'googleapis';
-
-const auth = new google.auth.GoogleAuth({
-  credentials: {
-    client_email: process.env.GOOGLE_CLIENT_EMAIL,
-    private_key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-  },
-  scopes: ['https://www.googleapis.com/auth/spreadsheets'],
-});
+import { NextResponse } from 'next/server';
+import { updateRestaurant } from '../../lib/restaurantDb';
 
 export async function POST(request) {
   try {
-    const { rowIndex, owner, name, email, phone } = await request.json();
+    const { id, name, phone, contact_person, city, state, zip_code, full_location, notes } = await request.json();
 
-    if (!rowIndex || !owner || !name || !email || !phone) {
-      return Response.json({ error: 'Missing required fields' }, { status: 400 });
+    if (!id) {
+      return NextResponse.json({ error: 'Restaurant ID is required' }, { status: 400 });
     }
 
-    const sheets = google.sheets({ version: 'v4', auth });
-    const spreadsheetId = process.env.GOOGLE_SHEET_ID;
+    const updates = {};
+    if (name) updates.name = name.trim();
+    if (phone) updates.phone = phone.trim();
+    if (contact_person !== undefined) updates.contact_person = contact_person.trim();
+    if (city !== undefined) updates.city = city.trim();
+    if (state !== undefined) updates.state = state.trim();
+    if (zip_code !== undefined) updates.zip_code = zip_code.trim();
+    if (full_location !== undefined) updates.full_location = full_location.trim();
+    if (notes !== undefined) updates.notes = notes;
 
-    // Update the specific cells for the lead information
-    // Column C (index 2) = Name, Column D (index 3) = Email, Column E (index 4) = Phone
-    const range = `${owner}!C${rowIndex}:E${rowIndex}`;
-    
-    const response = await sheets.spreadsheets.values.update({
-      spreadsheetId,
-      range,
-      valueInputOption: 'RAW',
-      requestBody: {
-        values: [[name, email, phone]]
-      },
+    const updated = updateRestaurant(id, updates);
+    if (!updated) {
+      return NextResponse.json({ error: 'Restaurant not found' }, { status: 404 });
+    }
+
+    return NextResponse.json({
+      success: true,
+      restaurant: updated,
     });
-
-    console.log('Lead information updated successfully:', response.data);
-
-    return Response.json({ 
-      success: true, 
-      message: 'Lead information updated successfully',
-      updatedCells: response.data.updatedCells 
-    });
-
   } catch (error) {
-    console.error('Error updating lead information:', error);
-    return Response.json({ 
-      error: 'Failed to update lead information',
-      details: error.message 
-    }, { status: 500 });
+    console.error('Error updating restaurant info:', error);
+    return NextResponse.json(
+      { error: 'Failed to update restaurant information' },
+      { status: 500 }
+    );
   }
-} 
+}

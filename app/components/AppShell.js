@@ -23,12 +23,12 @@ export default function AppShell({ title, search, sidebarExtra, sidebarFooter, h
       {collapsibleSidebar && (
         <button
           onClick={() => setSidebarOpen((v) => !v)}
-          className={`hidden md:flex fixed top-1/2 -translate-y-1/2 z-30 w-6 h-16 items-center justify-center bg-[#12162a]/90 border border-white/10 backdrop-blur-md hover:bg-white/10 transition-all duration-300 rounded-r-lg ${
+          className={`hidden md:flex fixed top-1/2 -translate-y-1/2 z-30 w-6 h-16 items-center justify-center bg-surface-container/90 border border-outline-variant backdrop-blur-md hover:bg-surface-container-high transition-all duration-300 rounded-r-lg cursor-pointer ${
             sidebarOpen ? 'left-[280px]' : 'left-0'
           }`}
           aria-label={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
         >
-          <span className="material-symbols-outlined text-[16px] text-white">
+          <span className="material-symbols-outlined text-[16px] text-on-surface">
             {sidebarOpen ? 'chevron_left' : 'chevron_right'}
           </span>
         </button>

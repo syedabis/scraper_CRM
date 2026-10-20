@@ -1,23 +1,48 @@
-import { auth, currentUser } from '@clerk/nextjs/server';
+import { cookies, headers } from 'next/headers';
+import { COOKIE_NAME, verifySessionToken } from './auth';
 
-// Who is making this request. Taken from the verified Clerk session rather than
-// from the request body — an agent name is the basis of the per-person
-// reporting, so it must not be something a client can simply claim to be.
-//
-// Works for both clients: the browser presents a session cookie, the mobile app
-// presents the same session as an Authorization: Bearer token, and Clerk
-// verifies either.
+// Who is making this request. Verified from session cookie or Authorization Bearer header.
 export async function getAgent() {
-  const { userId } = await auth();
-  if (!userId) return null;
+  try {
+    const cookieStore = await cookies();
+    const token = cookieStore.get(COOKIE_NAME)?.value;
+    const session = await verifySessionToken(token);
+    if (session?.email) {
+      const email = session.email;
+      const name =
+        process.env.AGENT_NAME ||
+        email.split('@')[0].replace(/[._-]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+      return {
+        userId: email,
+        name,
+        email,
+      };
+    }
+  } catch {
+    // Continue to header check
+  }
 
-  const user = await currentUser();
-  const email = user?.primaryEmailAddress?.emailAddress || user?.emailAddresses?.[0]?.emailAddress || '';
-  const name =
-    [user?.firstName, user?.lastName].filter(Boolean).join(' ').trim() ||
-    user?.username ||
-    email ||
-    userId;
+  try {
+    const headerList = await headers();
+    const authHeader = headerList.get('authorization');
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.substring(7).trim();
+      const session = await verifySessionToken(token);
+      if (session?.email) {
+        const email = session.email;
+        const name =
+          process.env.AGENT_NAME ||
+          email.split('@')[0].replace(/[._-]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+        return {
+          userId: email,
+          name,
+          email,
+        };
+      }
+    }
+  } catch {
+    // Return null below
+  }
 
-  return { userId, name, email };
+  return null;
 }

@@ -1,141 +1,53 @@
-import { google } from 'googleapis';
 import { NextResponse } from 'next/server';
-
-// Initialize Google Sheets API
-const auth = new google.auth.GoogleAuth({
-  credentials: {
-    client_email: process.env.GOOGLE_CLIENT_EMAIL,
-    private_key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-  },
-  scopes: ['https://www.googleapis.com/auth/spreadsheets'],
-});
-
-const sheets = google.sheets({ version: 'v4', auth });
-
-async function getNextProspectNumber(sheetName) {
-  try {
-    // Get all values from the sheet
-    const response = await sheets.spreadsheets.values.get({
-      spreadsheetId: process.env.GOOGLE_SHEET_ID,
-      range: `${sheetName}!C:C`, // Get all values from column C (name column)
-    });
-
-    const values = response.data.values || [];
-    let maxNumber = 0;
-
-    // Find the highest prospect number
-    values.forEach(row => {
-      if (row[0] && row[0].startsWith('prospect_')) {
-        const number = parseInt(row[0].split('_')[1]);
-        if (!isNaN(number) && number > maxNumber) {
-          maxNumber = number;
-        }
-      }
-    });
-
-    return maxNumber + 1;
-  } catch (error) {
-    console.error('Error getting next prospect number:', error);
-    return 1; // Default to 1 if there's an error
-  }
-}
-
-function getPakistanDateTime() {
-  const date = new Date().toLocaleString('en-PK', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    timeZone: 'Asia/Karachi'
-  });
-
-  const time = new Date().toLocaleString('en-PK', {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: true,
-    timeZone: 'Asia/Karachi'
-  });
-
-  return { date, time };
-}
+import { addRestaurant, getAllRestaurants } from '../../lib/restaurantDb';
 
 export async function POST(request) {
   try {
-    const data = await request.json();
-    const { name, email, phoneNumber, countryCode, lead } = data;
+    const body = await request.json();
+    const { name, phone, city, state, zip_code, address, listing_url, contact_person, notes } = body;
 
-    const fullPhoneNumber = `${countryCode}${phoneNumber}`;
+    if (!name || !name.trim()) {
+      return NextResponse.json({ error: 'Restaurant name is required' }, { status: 400 });
+    }
 
-    // Check for duplicate phone number before adding
-    try {
-      const existingLeadsResponse = await sheets.spreadsheets.values.get({
-        spreadsheetId: process.env.GOOGLE_SHEET_ID,
-        range: `${lead}!E:E`, // Column E contains phone numbers
-      });
+    if (!phone || !phone.trim()) {
+      return NextResponse.json({ error: 'Phone number is required' }, { status: 400 });
+    }
 
-      const existingPhoneNumbers = existingLeadsResponse.data.values || [];
-      
-      // Check if phone number already exists (skip header row)
-      const isDuplicate = existingPhoneNumbers.slice(1).some(row => 
-        row[0] && row[0].toString().trim() === fullPhoneNumber.trim()
+    // Clean phone for duplicate check
+    const cleanPhone = phone.replace(/\D/g, '');
+    const existing = getAllRestaurants();
+    const isDuplicate = existing.some((r) => (r.phone || '').replace(/\D/g, '') === cleanPhone);
+
+    if (isDuplicate) {
+      return NextResponse.json(
+        { error: 'A restaurant with this phone number already exists in the system.' },
+        { status: 409 }
       );
-
-      if (isDuplicate) {
-        console.log(`Duplicate phone number detected: ${fullPhoneNumber} in sheet ${lead}`);
-        return NextResponse.json({ 
-          success: false, 
-          error: 'Phone number already exists in the system',
-          duplicate: true 
-        }, { status: 409 });
-      }
-    } catch (error) {
-      console.error('Error checking for duplicates:', error);
-      // Continue with submission if duplicate check fails
     }
 
-    // Generate prospect name if no name is provided
-    let finalName = name;
-    if (!name || name.trim() === '') {
-      const nextNumber = await getNextProspectNumber(lead);
-      finalName = `prospect_${nextNumber}`;
-    }
-
-    const { date, time } = getPakistanDateTime();
-
-    // Prepare the row data
-    const rowData = [
-      [
-        date, // Date column
-        time, // Time column
-        finalName, // Name (or generated prospect name)
-        email || '', // Email (optional)
-        fullPhoneNumber, // Full phone number
-        '', // Status column (F) - empty initially
-        '', // Slot 1 (G) - 9:00 AM - 11:00 AM - empty initially
-        '', // Slot 2 (H) - 11:00 AM - 1:00 PM - empty initially
-        '', // Slot 3 (I) - 1:00 PM - 4:00 PM - empty initially
-        '', // Slot 4 (J) - 4:00 PM - 9:00 AM - empty initially
-        0,  // Number of Attempts (K) - 0 initially
-        '', // Notes (L) - empty initially
-      ],
-    ];
-
-    // Append the data to the lead owner's sheet
-    await sheets.spreadsheets.values.append({
-      spreadsheetId: process.env.GOOGLE_SHEET_ID,
-      range: `${lead}!A:L`, // Updated range to include Notes column
-      valueInputOption: 'USER_ENTERED',
-      requestBody: {
-        values: rowData,
-      },
+    const newRestaurant = addRestaurant({
+      name,
+      phone,
+      city,
+      state,
+      zip_code,
+      full_location: address || `${city || ''}, ${state || ''} ${zip_code || ''}, United States`.trim(),
+      listing_url,
+      contact_person,
+      notes,
+      status: 'New Lead',
     });
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({
+      success: true,
+      restaurant: newRestaurant,
+    });
   } catch (error) {
-    console.error('Error submitting to Google Sheets:', error);
+    console.error('Error in submit-lead:', error);
     return NextResponse.json(
-      { error: 'Failed to submit data' },
+      { error: 'Failed to submit restaurant lead' },
       { status: 500 }
     );
   }
-} 
+}

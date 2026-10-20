@@ -60,7 +60,7 @@ function weekdayOf(iso) {
 function Stat({ label, value, accent }) {
   return (
     <div className="bg-black/20 border border-white/5 rounded-lg px-4 py-3">
-      <div className={`text-xl font-bold leading-none mb-1 ${accent || 'text-white'}`}>{value}</div>
+      <div className={`text-xl font-bold leading-none mb-1 ${accent || 'text-on-surface'}`}>{value}</div>
       <div className="text-[10px] text-dim font-medium uppercase tracking-wider">{label}</div>
     </div>
   );
@@ -148,7 +148,7 @@ export default function AgentTracking() {
       <div className="flex flex-col gap-5 text-[13px]">
         <div className="flex flex-col md:flex-row md:justify-between md:items-end gap-3">
           <div>
-            <h1 className="text-2xl font-bold text-white tracking-tight mb-1">Agent Tracking</h1>
+            <h1 className="text-2xl font-bold text-on-surface tracking-tight mb-1">Agent Tracking</h1>
             <p className="text-dim text-[11px]">
               Work sessions from the mobile app, with the calls made inside each one.
             </p>
@@ -161,7 +161,7 @@ export default function AgentTracking() {
                 className={`px-3 py-1.5 rounded-lg text-[11px] font-medium border transition-colors ${
                   activePreset === p.label
                     ? 'bg-brand-green/15 text-brand-green border-brand-green/40'
-                    : 'bg-black/20 text-muted border-white/10 hover:text-white hover:border-white/20'
+                    : 'header-btn text-muted hover:text-on-surface'
                 }`}
               >
                 {p.label}
@@ -180,7 +180,7 @@ export default function AgentTracking() {
           <div className="text-center text-muted py-16">Loading…</div>
         ) : data.agents.length === 0 ? (
           <div className="glass-card p-12 text-center">
-            <h2 className="text-lg font-semibold text-white mb-2">
+            <h2 className="text-lg font-semibold text-on-surface mb-2">
               Nothing recorded in this period
             </h2>
             <p className="text-muted text-xs">
@@ -192,7 +192,7 @@ export default function AgentTracking() {
             <div key={a.email || a.agent} className="glass-card p-5 flex flex-col gap-4">
               <div className="flex flex-wrap justify-between items-start gap-3">
                 <div>
-                  <h3 className="text-base font-semibold text-white">{a.agent}</h3>
+                  <h3 className="text-base font-semibold text-on-surface">{a.agent}</h3>
                   <p className="text-[11px] text-dim">{a.email}</p>
                 </div>
                 {a.totals.untrackedCalls > 0 && (
@@ -263,7 +263,7 @@ export default function AgentTracking() {
                           >
                             <td className="py-2.5 pr-4 whitespace-nowrap">
                               {newDay ? (
-                                <span className="font-semibold text-white">
+                                <span className="font-semibold text-on-surface">
                                   {formatDay(s.date)}{' '}
                                   <span className="text-dim font-normal">{weekdayOf(s.date)}</span>
                                 </span>
@@ -295,7 +295,7 @@ export default function AgentTracking() {
                             <td className="py-2.5 pr-4 text-right tabular-nums text-brand-orange">
                               {s.noAnswer || '—'}
                             </td>
-                            <td className="py-2.5 pr-4 text-right tabular-nums font-semibold text-white">
+                            <td className="py-2.5 pr-4 text-right tabular-nums font-semibold text-on-surface">
                               {s.calls}
                             </td>
                             <td className="py-2.5 pr-4 text-right tabular-nums">{s.leads}</td>
