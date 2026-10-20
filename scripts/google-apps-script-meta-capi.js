@@ -56,11 +56,18 @@ function installedOnEdit(e) {
   const row = e.range.getRow();
   const col = e.range.getColumn();
 
-  // Column F is Column 6 (Status)
-  if (col !== 6 || row < 2) return;
+  // Trigger on Column F (Status = 6) OR Column M (Ad Tag Dropdown = 13)
+  if ((col !== 6 && col !== 13) || row < 2) return;
 
-  const newStatus = (e.value || sheet.getRange(row, 6).getValue() || '').toString().trim();
-  const eventName = MILESTONE_EVENTS[newStatus];
+  // Column M (Column 13) MUST be 'A' to send to Meta CAPI
+  const columnMVal = (sheet.getRange(row, 13).getValue() || '').toString().trim().toUpperCase();
+  if (columnMVal !== 'A') {
+    Logger.log(`Row ${row} Column M is '${columnMVal}'. Skipping Meta CAPI.`);
+    return;
+  }
+
+  const currentStatus = (sheet.getRange(row, 6).getValue() || '').toString().trim();
+  const eventName = MILESTONE_EVENTS[currentStatus];
 
   // If not a tracked milestone, do nothing
   if (!eventName) return;
@@ -77,7 +84,7 @@ function installedOnEdit(e) {
     const payload = {
       sheetName: sheetName,
       rowIndex: row,
-      status: newStatus
+      status: currentStatus
     };
 
     const options = {
@@ -141,8 +148,9 @@ function menuCheckRowStatus() {
   const name = sheet.getRange(row, 3).getValue();
   const phone = sheet.getRange(row, 5).getValue();
   const status = sheet.getRange(row, 6).getValue();
+  const colM = sheet.getRange(row, 13).getValue();
   const syncStatus = sheet.getRange(row, 19).getValue();
 
-  const msg = `Row ${row} Details:\n\n• Name: ${name || 'N/A'}\n• Phone: ${phone || 'N/A'}\n• Status: ${status || 'N/A'}\n• Meta CAPI (Col S): ${syncStatus || 'Not Synced'}`;
+  const msg = `Row ${row} Details:\n\n• Name: ${name || 'N/A'}\n• Phone: ${phone || 'N/A'}\n• Status: ${status || 'N/A'}\n• Ad Tag (Col M): ${colM || 'Empty (Not sent to Meta)'}\n• Meta CAPI (Col S): ${syncStatus || 'Not Synced'}`;
   ui.alert('Lead CAPI Status', msg, ui.ButtonSet.OK);
 }

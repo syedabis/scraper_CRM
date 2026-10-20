@@ -162,7 +162,7 @@ export async function POST(request) {
     // to (rather than overwrite) a reused time-slot cell, and to recompute
     // Number of Attempts from the true entry count across all 4 slots below.
     const SLOT_COLUMN_TO_INDEX = { G: 6, H: 7, I: 8, J: 9 }; // within A:K
-    const rowRange = `${owner.toLowerCase()}!A${rowIndex}:K${rowIndex}`;
+    const rowRange = `${owner.toLowerCase()}!A${rowIndex}:S${rowIndex}`;
     const rowResponse = await sheets.spreadsheets.values.get({
       spreadsheetId,
       range: rowRange,
@@ -294,17 +294,23 @@ export async function POST(request) {
     console.log('Client said (status):', status);
 
     // Asynchronously dispatch to Meta Conversions API for milestones (Demo, Registration, Payment Pending, Enrolled)
-    sendMetaCapiEvent({
-      status,
-      previousStatus: rowData[5] || '',
-      phone: rowData[4] || '',
-      email: rowData[3] || '',
-      leadDate: rowData[0] || '',
-      owner,
-      sheets,
-      spreadsheetId,
-      rowIndex,
-    }).catch((capiErr) => console.error('[Meta CAPI] Background error in update-lead-status:', capiErr));
+    // Only leads with Column M === 'A' are pushed to Meta CAPI
+    const isAdLead = (rowData[12] || '').toString().trim().toUpperCase() === 'A';
+    if (isAdLead) {
+      sendMetaCapiEvent({
+        status,
+        previousStatus: rowData[5] || '',
+        phone: rowData[4] || '',
+        email: rowData[3] || '',
+        leadDate: rowData[0] || '',
+        owner,
+        sheets,
+        spreadsheetId,
+        rowIndex,
+      }).catch((capiErr) => console.error('[Meta CAPI] Background error in update-lead-status:', capiErr));
+    } else {
+      console.log(`[Meta CAPI] Skipped: Lead at row ${rowIndex} has Column M = '${rowData[12] || 'empty'}'. Only 'A' is sent to Meta.`);
+    }
 
     return NextResponse.json({ 
       success: true, 

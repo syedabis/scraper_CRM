@@ -74,6 +74,17 @@ async function syncSingleRow({
     };
   }
 
+  // Column M filter (13th column, index 12):
+  // Only leads marked with 'A' in Column M are pushed to Meta CAPI.
+  const columnMValue = (row[12] || '').toString().trim().toUpperCase();
+  if (columnMValue !== 'A') {
+    return {
+      success: true,
+      skipped: true,
+      reason: `Column M is '${columnMValue || 'empty'}'. Only leads marked with 'A' are pushed to Meta.`,
+    };
+  }
+
   // Repeat / Duplicate Check using Column S
   if (!force && isAlreadySyncedInSheet(columnSValue, currentStatus)) {
     console.log(`[sync-sheet-capi] Skipped: Row ${rowIndex} (${phone}) was already synced as '${eventName}' in Column S.`);
@@ -146,6 +157,13 @@ async function scanAndSyncSheet({ spreadsheetId, sheetName }) {
     const eventName = STATUS_TO_META_EVENT[status];
     if (!eventName) {
       // Not a milestone status
+      results.skippedCount++;
+      continue;
+    }
+
+    // Column M filter: must be 'A'
+    const columnMValue = (row[12] || '').toString().trim().toUpperCase();
+    if (columnMValue !== 'A') {
       results.skippedCount++;
       continue;
     }

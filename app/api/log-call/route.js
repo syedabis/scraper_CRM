@@ -93,7 +93,7 @@ export async function POST(request) {
     // cell, to recount attempts, and to add to the running talk-time total.
     const rowResponse = await sheets.spreadsheets.values.get({
       spreadsheetId,
-      range: `${tab}!A${rowIndex}:R${rowIndex}`,
+      range: `${tab}!A${rowIndex}:S${rowIndex}`,
     });
     const rowData = rowResponse.data.values?.[0] || [];
 
@@ -191,17 +191,23 @@ export async function POST(request) {
     }
 
     // Asynchronously dispatch to Meta Conversions API for milestones (Demo, Registration, Payment Pending, Enrolled)
-    sendMetaCapiEvent({
-      status,
-      previousStatus: rowData[5] || '',
-      phone: body.phone || rowData[4] || '',
-      email: rowData[3] || '',
-      leadDate: rowData[0] || '',
-      owner,
-      sheets,
-      spreadsheetId,
-      rowIndex,
-    }).catch((capiErr) => console.error('[Meta CAPI] Background error in log-call:', capiErr));
+    // Only leads with Column M === 'A' are pushed to Meta CAPI
+    const isAdLead = (rowData[12] || '').toString().trim().toUpperCase() === 'A';
+    if (isAdLead) {
+      sendMetaCapiEvent({
+        status,
+        previousStatus: rowData[5] || '',
+        phone: body.phone || rowData[4] || '',
+        email: rowData[3] || '',
+        leadDate: rowData[0] || '',
+        owner,
+        sheets,
+        spreadsheetId,
+        rowIndex,
+      }).catch((capiErr) => console.error('[Meta CAPI] Background error in log-call:', capiErr));
+    } else {
+      console.log(`[Meta CAPI] Skipped: Lead at row ${rowIndex} has Column M = '${rowData[12] || 'empty'}'. Only 'A' is sent to Meta.`);
+    }
 
     return NextResponse.json({
       success: true,
